@@ -64,12 +64,10 @@ targets:
     platform: macOS
     sources:
       - path: Tests/AKBTests
-      - path: Sources/AKB/Model/BatteryStatus.swift
-      - path: Sources/AKB/Model/PhoneDevice.swift
-      - path: Sources/AKB/Model/ProductTypeMap.swift
-      - path: Sources/AKB/Services/IMobileDeviceOutputParser.swift
-      - path: Sources/AKB/Services/AlertPolicy.swift
-      - path: Sources/AKB/Services/ProviderError.swift
+      # Тестируемая часть приложения компилируется прямо в бандл тестов:
+      # так тестам не нужен host-приложение, которое поднимает строку меню.
+      - path: Sources/AKB/Model
+      - path: Sources/AKB/Services
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ru.tonydanzza.akb.tests
