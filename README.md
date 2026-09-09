@@ -8,6 +8,14 @@
 libimobiledevice, что использует Finder. Bluetooth заряд iPhone для Mac
 не отдаёт, поэтому этот путь не используется.
 
+Спящий iPhone, который просто лежит на столе, тоже показывается. Он
+перестаёт объявлять себя в Bonjour, и `idevice_id -n` возвращает пусто, но
+порт `lockdownd` на его адресе в локальной сети открыт волнами — телефон
+регулярно просыпается для push. АКБ помнит адрес телефона и в такие
+моменты читает заряд напрямую по IP (помощник `akb-direct` внутри
+приложения). Если телефон не отвечает дольше 15 минут, число остаётся на
+экране, но приглушается, а в окне пишется «Нет связи ▏данные 14:32».
+
 ![Строка меню](screenshots/menubar-real.png)
 
 ## Что нужно один раз сделать на телефоне
@@ -110,16 +118,30 @@ otool -L build/Build/Products/Release/AKB.app/Contents/Helpers/* | grep homebrew
 | `AKB_FAKE_CHARGING=1` | к фейковому заряду добавляет «заряжается» |
 | `AKB_FAKE_NO_DEVICE=1` | «iPhone не найден» — проверить пустое состояние |
 | `AKB_FAKE_NO_TOOL=1` | «нет libimobiledevice» — проверить второе пустое состояние |
+| `AKB_FAKE_STALE_AFTER=20` | фейковый телефон «засыпает» через 20 с — проверить «Нет связи» |
 
 ```bash
 AKB_FAKE_PERCENT=25 build/Build/Products/Debug/AKB.app/Contents/MacOS/AKB &
 ```
 
-Логи приложения:
+Логи приложения (видно, каким путём получен заряд — `usbmuxd` или `direct`,
+с какого адреса и за сколько секунд):
 
 ```bash
 log stream --predicate 'subsystem == "ru.tonydanzza.akb"' --level info
 ```
+
+Помощник для спящего телефона можно позвать и руками:
+
+```bash
+H=/Applications/AKB.app/Contents/Helpers/akb-direct
+"$H" mac <UDID>                    # 34:10:be:d8:21:09 — MAC из записи сопряжения
+"$H" addr <UDID>                   # IP, если usbmuxd сейчас видит телефон
+"$H" battery 192.168.1.11 <UDID>   # заряд напрямую по IP
+```
+
+Код 3 значит «рукопожатие не удалось»: телефон в этот момент спит.
+Это нормально — приложение повторяет запрос каждые 3 секунды в течение 40.
 
 ## Настройки
 
@@ -132,6 +154,14 @@ log stream --predicate 'subsystem == "ru.tonydanzza.akb"' --level info
 - **Система** — автозапуск и кнопка «Показать инструкцию…».
 
 Опрос выполняется также при пробуждении Mac и при открытии окна.
+
+## Расход батареи
+
+Один опрос — это несколько пакетов в локальной сети и короткое TLS-рукопожатие
+с телефоном; трафика и работы там на доли секунды. Телефон мы не будим: АКБ
+только пользуется теми моментами, когда он проснулся сам, а запросы к спящему
+телефону до него просто не доходят. Пока экран Mac спит или сессия
+заблокирована, опрос полностью остановлен и возобновляется при пробуждении.
 
 ## Передать другому
 
@@ -157,10 +187,13 @@ Sources/AKB/
   Model/                          BatteryStatus, PhoneDevice, ProductTypeMap
   Services/
     BatteryProvider.swift         протокол источника данных
-    IMobileDeviceProvider.swift   idevice_id / ideviceinfo через Process
+    IMobileDeviceProvider.swift   idevice_id / ideviceinfo + прямой путь по IP
     IMobileDeviceOutputParser.swift  чистый парсер (покрыт тестами)
     ProcessRunner.swift           Process вне главного потока, таймаут 10 с
     ToolLocator.swift             поиск бинарников
+    DeviceAddressResolver.swift   кэш → usbmuxd → MAC + arp: адрес телефона
+    ARPTable.swift                чистый разбор `arp -an` (покрыт тестами)
+    RetryWindow.swift             окно повторов 40 с шагом 3 с (покрыто тестами)
     BatteryMonitor.swift          @Observable состояние и таймер опроса
     AlertPolicy.swift             когда слать уведомление (покрыто тестами)
     NotificationService.swift     UNUserNotificationCenter
@@ -168,7 +201,8 @@ Sources/AKB/
   Views/                          MenuBarLabel, StatusPopoverView,
                                   SettingsView, EmptyStateView,
                                   OnboardingView, Hairline
-Tests/AKBTests/                   24 теста, Swift Testing
+Helpers/akb-direct/               помощник на C: заряд по IP, MAC, адрес
+Tests/AKBTests/                   47 тестов, Swift Testing
 ```
 
 ```

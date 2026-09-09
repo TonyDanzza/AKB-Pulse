@@ -16,6 +16,8 @@ enum MenuBarLabelRenderer {
         var showsBolt: Bool
         var text: String?
         var isRed: Bool
+        /// Данные старше 15 минут: показываем, но приглушённо (план §16.5).
+        var isDim: Bool = false
     }
 
     static func content(for monitor: BatteryMonitor) -> Content {
@@ -26,6 +28,13 @@ enum MenuBarLabelRenderer {
                            showsBolt: status.isCharging || status.externalConnected,
                            text: monitor.showPercent ? "\(status.percent)%" : nil,
                            isRed: low)
+        case .stale(let status):
+            let low = status.percent < monitor.threshold && !status.isCharging
+            return Content(symbol: SymbolName.phone,
+                           showsBolt: false,
+                           text: monitor.showPercent ? "\(status.percent)%" : nil,
+                           isRed: low,
+                           isDim: true)
         case .failed(.toolNotFound):
             return Content(symbol: SymbolName.warning, showsBolt: false, text: nil, isRed: false)
         case .failed:
@@ -55,6 +64,7 @@ enum MenuBarLabelRenderer {
             }
         }
         .foregroundStyle(color)
+        .opacity(content.isDim ? 0.55 : 1)
         .padding(.horizontal, 1)
         .fixedSize()
 

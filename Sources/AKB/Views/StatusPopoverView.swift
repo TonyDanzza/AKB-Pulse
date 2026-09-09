@@ -23,6 +23,18 @@ struct StatusPopoverView: View {
                 updatedRow(status)
                     .padding(.bottom, 12)
 
+            case .stale(let status):
+                // Телефон спит дольше 15 минут: число остаётся, но честно помечено
+                // возрастом, а цвет уходит в secondary — это не текущее состояние (§16.5).
+                identity
+                    .padding(.bottom, 14)
+                staleHero(status)
+                    .padding(.bottom, 8)
+                gauge(status, stale: true)
+                    .padding(.bottom, 6)
+                noLinkRow(status)
+                    .padding(.bottom, 12)
+
             case .failed(let error):
                 // EmptyStateView собран вручную и меряется по содержимому — фиксированная
                 // высота ему больше не нужна (раньше её требовал ContentUnavailableView).
@@ -114,15 +126,35 @@ struct StatusPopoverView: View {
         .lineLimit(1)
     }
 
+    /// Тот же герой, но состояние заменено на «Нет связи»: показывать «Не заряжается»
+    /// по данным получасовой давности было бы враньём.
+    private func staleHero(_ status: BatteryStatus) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("\(status.percent)%")
+                .font(.system(size: 28, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .accessibilityLabel(String(format: L("a11y.percent", "Заряд %d процентов"),
+                                           status.percent))
+            HStack(spacing: 4) {
+                Image(systemName: SymbolName.asleep)
+                Text(L("state.noLink", "Нет связи"))
+            }
+            .font(.body)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+        }
+    }
+
     // MARK: - 3. Полоса заряда
 
     /// `Gauge(.linearCapacity)` на macOS 26 рисует полосу 16 pt — втрое толще, чем нужно
     /// по §14.1 (≤ 6 pt). Нативная замена той же семантики: линейный `ProgressView`, ~5 pt.
-    private func gauge(_ status: BatteryStatus) -> some View {
+    private func gauge(_ status: BatteryStatus, stale: Bool = false) -> some View {
         ProgressView(value: status.fraction, total: 1)
             .progressViewStyle(.linear)
             .controlSize(.small)
-            .tint(Self.tint(for: status, threshold: monitor.threshold))
+            .tint(stale ? Color.secondary : Self.tint(for: status, threshold: monitor.threshold))
             .animation(.smooth, value: status.fraction)
             .accessibilityHidden(true)
     }
@@ -131,6 +163,15 @@ struct StatusPopoverView: View {
 
     private func updatedRow(_ status: BatteryStatus) -> some View {
         Text(String(format: L("popover.updatedAt", "Обновлено %@"),
+                    Self.timeFormatter.string(from: status.updatedAt)))
+            .font(.caption)
+            .foregroundStyle(.tertiary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// «данные 14:32» — возраст показаний вместо времени последнего успеха.
+    private func noLinkRow(_ status: BatteryStatus) -> some View {
+        Text(String(format: L("popover.dataAt", "данные %@"),
                     Self.timeFormatter.string(from: status.updatedAt)))
             .font(.caption)
             .foregroundStyle(.tertiary)

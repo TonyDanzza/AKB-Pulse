@@ -12,6 +12,8 @@ final class BatteryMonitor {
         case idle
         case loading
         case ready(BatteryStatus)
+        /// Связь потеряна, но последние показания ещё свежие: телефон спит (план §16.1).
+        case stale(BatteryStatus)
         case failed(ProviderError)
     }
 
@@ -29,8 +31,9 @@ final class BatteryMonitor {
     var threshold: Int { Prefs.lowThreshold }
 
     /// Заряд ниже порога и телефон не заряжается — красное состояние в строке меню.
+    /// Уснувший телефон тоже считается: цифра приглушается, но красный остаётся.
     var isLow: Bool {
-        guard case .ready(let status) = phase else { return false }
+        guard let status = phase.status else { return false }
         return status.percent < threshold && !status.isCharging
     }
 
@@ -44,14 +47,32 @@ final class BatteryMonitor {
     /// iPhone по Wi-Fi отвечает не каждый раз (радио засыпает). Одна осечка
     /// не должна стирать показания — уходим в ошибку только после трёх подряд.
     private var consecutiveFailures = 0
-    private static let failuresBeforeError = 3
-    private var wakeObserver: NSObjectProtocol?
+    static let failuresBeforeError = 3
+    private var observers: [NSObjectProtocol] = []
+    /// Экран Mac спит или сессия заблокирована — опрос стоит (план §16.6).
+    private var isPaused = false
 
-    init(provider: BatteryProvider? = nil) {
+    /// Сколько живут последние показания. Позже телефон считается недоступным (план §16.1).
+    static let defaultStaleLimit: TimeInterval = 12 * 60 * 60
+    /// До этого возраста показания считаются актуальными; дальше — «Нет связи» (план §16.5).
+    static let defaultNoLinkAfter: TimeInterval = 15 * 60
+    private let staleLimit: TimeInterval
+    private let noLinkAfter: TimeInterval
+    private let now: @MainActor () -> Date
+
+    init(provider: BatteryProvider? = nil,
+         staleLimit: TimeInterval = BatteryMonitor.defaultStaleLimit,
+         noLinkAfter: TimeInterval = BatteryMonitor.defaultNoLinkAfter,
+         now: @escaping @MainActor () -> Date = { Date() }) {
+        self.staleLimit = staleLimit
+        self.noLinkAfter = noLinkAfter
+        self.now = now
         if let provider {
             self.provider = provider
         } else if let fake = FakeMode.percent {
-            self.provider = FakeProvider(percent: fake, isCharging: FakeMode.isCharging)
+            self.provider = FakeProvider(percent: fake,
+                                         isCharging: FakeMode.isCharging,
+                                         staleAfter: FakeMode.staleAfter)
         } else {
             self.provider = IMobileDeviceProvider()
         }
@@ -70,28 +91,59 @@ final class BatteryMonitor {
     func stop() {
         timerTask?.cancel()
         timerTask = nil
-        if let wakeObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
-            self.wakeObserver = nil
+        for observer in observers {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+        }
+        observers = []
+    }
+
+    /// Энергия (план §16.6): пока экран спит или сессия заблокирована, опрашивать
+    /// телефон незачем — никто не смотрит. При пробуждении сразу спрашиваем заряд.
+    private func observeWake() {
+        let center = NSWorkspace.shared.notificationCenter
+        let wake: [NSNotification.Name] = [
+            NSWorkspace.didWakeNotification,
+            NSWorkspace.screensDidWakeNotification,
+            NSWorkspace.sessionDidBecomeActiveNotification
+        ]
+        let sleep: [NSNotification.Name] = [
+            NSWorkspace.screensDidSleepNotification,
+            NSWorkspace.sessionDidResignActiveNotification
+        ]
+        for name in wake {
+            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.resume()
+                }
+            })
+        }
+        for name in sleep {
+            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.pause() }
+            })
         }
     }
 
-    private func observeWake() {
-        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didWakeNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated {
-                guard let self else { return }
-                Task { await self.refresh(rediscover: true) }
-            }
-        }
+    private func pause() {
+        guard !isPaused else { return }
+        isPaused = true
+        timerTask?.cancel()
+        timerTask = nil
+        Self.log.info("опрос приостановлен: экран спит или сессия заблокирована")
+    }
+
+    private func resume() {
+        isPaused = false
+        Self.log.info("опрос возобновлён")
+        scheduleTimer()
+        Task { await refresh(rediscover: true) }
     }
 
     /// Перезапускает таймер опроса (вызывается при смене интервала в настройках).
     func scheduleTimer() {
         timerTask?.cancel()
+        guard !isPaused else { return }
         let seconds = max(10, Prefs.pollInterval)
         timerTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -127,7 +179,8 @@ final class BatteryMonitor {
         if case .idle = phase { phase = .loading }
 
         do {
-            if rediscover || devices.isEmpty || selectedDevice == nil {
+            // Пока телефон считается спящим, список устройств пуст — ищем заново каждый раз.
+            if rediscover || devices.isEmpty || selectedDevice == nil || phase.isStale {
                 let found = try await provider.listDevices()
                 Self.log.info("найдено устройств: \(found.count, privacy: .public)")
                 devices = found
@@ -170,12 +223,45 @@ final class BatteryMonitor {
     /// Ошибка опроса. Пока показания свежие, короткие обрывы связи не стирают экран.
     private func fail(with error: ProviderError) {
         consecutiveFailures += 1
-        if case .ready = phase,
-           consecutiveFailures < Self.failuresBeforeError,
-           error != .toolNotFound {
-            return
+        phase = Self.nextPhase(current: phase,
+                               error: error,
+                               lastKnown: lastKnownStatus,
+                               now: now(),
+                               noLinkAfter: noLinkAfter,
+                               staleLimit: staleLimit,
+                               failures: consecutiveFailures)
+    }
+
+    /// Чистое правило перехода после неудачного опроса (план §16.1) — вся логика stale здесь,
+    /// чтобы её можно было проверить тестами без таймеров, уведомлений и настроек.
+    ///
+    /// - `.toolNotFound` / `.parseFailure` — это поломка, а не сон: сразу `.failed`.
+    /// - Первые неудачи подряд, пока на экране свежие данные, ничего не меняют.
+    /// - Показания моложе `noLinkAfter` (15 мин) остаются `.ready`: телефон просто
+    ///   не ответил в эту волну, число всё ещё верное.
+    /// - Старше — `.stale` («Нет связи · данные 14:32»), старше `staleLimit` — `.failed`.
+    static func nextPhase(current: Phase,
+                          error: ProviderError,
+                          lastKnown: BatteryStatus?,
+                          now: Date,
+                          noLinkAfter: TimeInterval = BatteryMonitor.defaultNoLinkAfter,
+                          staleLimit: TimeInterval,
+                          failures: Int,
+                          failuresBeforeError: Int = BatteryMonitor.failuresBeforeError) -> Phase {
+        switch error {
+        case .toolNotFound, .parseFailure:
+            return .failed(error)
+        case .noDevice, .deviceUnreachable, .timeout:
+            break
         }
-        phase = .failed(error)
+        if case .ready = current, failures < failuresBeforeError {
+            return current
+        }
+        guard let lastKnown else { return .failed(error) }
+        let age = now.timeIntervalSince(lastKnown.updatedAt)
+        if age < noLinkAfter { return .ready(lastKnown) }
+        if age < staleLimit { return .stale(lastKnown) }
+        return .failed(error)
     }
 
     /// Выбор устройства: сохранённый UDID → семейство iPhone 17 → первый найденный (план §2).
@@ -206,5 +292,18 @@ extension BatteryMonitor.Phase {
     var isFailed: Bool {
         if case .failed = self { return true }
         return false
+    }
+
+    var isStale: Bool {
+        if case .stale = self { return true }
+        return false
+    }
+
+    /// Показания, которые сейчас на экране: свежие или последние известные.
+    var status: BatteryStatus? {
+        switch self {
+        case .ready(let status), .stale(let status): status
+        case .idle, .loading, .failed: nil
+        }
     }
 }

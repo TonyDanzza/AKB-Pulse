@@ -665,6 +665,23 @@
         }
       }
     },
+    "popover.dataAt": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "data %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "данные %@"
+          }
+        }
+      }
+    },
     "popover.loading": {
       "extractionState": "manual",
       "localizations": {
@@ -1069,6 +1086,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Заряжен полностью"
+          }
+        }
+      }
+    },
+    "state.noLink": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No link"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет связи"
           }
         }
       }

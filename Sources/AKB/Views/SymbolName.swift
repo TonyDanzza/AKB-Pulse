@@ -36,6 +36,9 @@ enum SymbolName {
     static var settings: String { resolve("gearshape", "gear") }
     static var quit: String { resolve("power") }
     static var powerplug: String { resolve("powerplug.fill", "powerplug") }
+
+    /// Телефон спит и не отвечает — показания «с возрастом» (план §16.5).
+    static var asleep: String { resolve("moon.zzz.fill", "moon.zzz", "moon.fill") }
     static var copy: String { resolve("doc.on.doc") }
     static var folder: String { resolve("folder") }
 }
