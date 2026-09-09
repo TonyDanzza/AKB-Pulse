@@ -1,5 +1,4 @@
 import Foundation
-import OSLog
 
 /// Запуск внешней утилиты. Отдельный протокол нужен ради тестов:
 /// в них вместо `Process` подставляется таблица заранее заготовленных ответов.
@@ -50,8 +49,6 @@ struct PrefsAddressCache: AddressCache {
 /// повторов закончилось ничем, зовёт `invalidate(_:)`, и следующий опрос ищет заново.
 actor DeviceAddressResolver {
 
-    static let log = Logger(subsystem: "ru.tonydanzza.akb", category: "resolver")
-
     /// Как ищется адрес — попадает в лог и нужно для приёмки §16.8.
     enum Source: String, Sendable {
         case cache
@@ -82,15 +79,15 @@ actor DeviceAddressResolver {
         }
         if let ip = await addressFromUSBMux(udid: udid) {
             cache.setIP(ip, for: udid)
-            Self.log.info("адрес из usbmuxd: \(ip, privacy: .public)")
+            AKBLog.info(.resolver, "адрес из usbmuxd: \(ip)")
             return Resolved(ip: ip, source: .usbmuxd)
         }
         if let ip = await addressFromARP(udid: udid) {
             cache.setIP(ip, for: udid)
-            Self.log.info("адрес из arp: \(ip, privacy: .public)")
+            AKBLog.info(.resolver, "адрес из arp: \(ip)")
             return Resolved(ip: ip, source: .arp)
         }
-        Self.log.info("адрес не найден для \(udid, privacy: .public)")
+        AKBLog.info(.resolver, "адрес не найден для \(udid)")
         return nil
     }
 
@@ -100,7 +97,7 @@ actor DeviceAddressResolver {
         guard cache.ip(for: udid) == nil else { return }
         guard let ip = await addressFromUSBMux(udid: udid) else { return }
         cache.setIP(ip, for: udid)
-        Self.log.info("адрес запомнен, пока телефон виден: \(ip, privacy: .public)")
+        AKBLog.info(.resolver, "адрес запомнен, пока телефон виден: \(ip)")
     }
 
     /// Кэш адреса больше не верен: телефон переехал или его тут нет.
@@ -112,11 +109,11 @@ actor DeviceAddressResolver {
 
     private func addressFromUSBMux(udid: String) async -> String? {
         guard let result = try? await executor.run("akb-direct", ["addr", udid], timeout: timeout) else {
-            Self.log.info("akb-direct addr не запустился")
+            AKBLog.info(.resolver, "akb-direct addr не запустился")
             return nil
         }
         guard result.status == 0 else {
-            Self.log.debug("akb-direct addr: код \(result.status, privacy: .public)")
+            AKBLog.debug(.resolver, "akb-direct addr: код \(result.status)")
             return nil
         }
         let ip = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -125,16 +122,16 @@ actor DeviceAddressResolver {
 
     private func addressFromARP(udid: String) async -> String? {
         guard let mac = await wifiMAC(udid: udid) else {
-            Self.log.info("MAC телефона неизвестен")
+            AKBLog.info(.resolver, "MAC телефона неизвестен")
             return nil
         }
         guard let arp = try? await executor.run("/usr/sbin/arp", ["-an"], timeout: timeout),
               arp.status == 0 else {
-            Self.log.info("arp -an не отработал")
+            AKBLog.info(.resolver, "arp -an не отработал")
             return nil
         }
         guard let ip = ARPTable.address(of: mac, in: arp.stdout) else {
-            Self.log.info("в arp нет записи для \(mac, privacy: .public)")
+            AKBLog.info(.resolver, "в arp нет записи для \(mac)")
             return nil
         }
         return ip
@@ -146,14 +143,15 @@ actor DeviceAddressResolver {
     private func wifiMAC(udid: String) async -> String? {
         if let cached = cache.mac(for: udid), let mac = ARPTable.normalize(cached) { return mac }
         guard let result = try? await executor.run("akb-direct", ["mac", udid], timeout: timeout) else {
-            Self.log.info("akb-direct mac не запустился")
+            AKBLog.info(.resolver, "akb-direct mac не запустился")
             return nil
         }
         guard result.status == 0,
               let mac = ARPTable.normalize(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines))
         else {
-            Self.log.info("""
-                akb-direct mac: код \(result.status, privacy: .public),                 \(result.stderr.trimmingCharacters(in: .whitespacesAndNewlines), privacy: .public)
+            AKBLog.info(.resolver, """
+                akb-direct mac: код \(result.status), \
+                \(result.stderr.trimmingCharacters(in: .whitespacesAndNewlines))
                 """)
             return nil
         }

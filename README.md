@@ -157,9 +157,21 @@ H=/Applications/AKB.app/Contents/Helpers/akb-direct
   «показывать проценты в строке меню».
 - **Уведомления** — порог 10…50 % (по умолчанию 30 %) и повтор на каждой
   ступени −10 % (30 → 20 → 10).
-- **Система** — автозапуск и кнопка «Показать инструкцию…».
+- **Система** — автозапуск, кнопка «Показать инструкцию…» и «Сохранить лог…».
 
 Опрос выполняется также при пробуждении Mac и при открытии окна.
+
+## Лог
+
+АКБ пишет события в `~/Library/Logs/AKB/akb.log` (ротация по 2 МБ, хранится три
+файла). Кнопка «Сохранить лог…» в настройках складывает в один текстовый файл
+шапку (версия, macOS, модель Mac, откуда запущено приложение, где найдены
+помощники, интервал и порог), весь файловый лог и хвост системного unified log
+за два часа, и предлагает сохранить его на Рабочий стол.
+
+**В этом файле есть имя iPhone, его UDID и адрес в домашней сети.** Так и
+задумано: без них не понять, почему заряд не читается. Отправляй файл только
+тому, кто помогает с настройкой.
 
 ## Расход батареи
 
@@ -206,16 +218,20 @@ Sources/AKB/
     AlertPolicy.swift             когда слать уведомление (покрыто тестами)
     NotificationService.swift     UNUserNotificationCenter
     LaunchAtLogin.swift           SMAppService
+    AKBLog.swift                  единая точка: os.Logger + файловый лог
+    FileLog.swift                 ~/Library/Logs/AKB с ротацией (покрыт тестами)
+    SupportReport.swift           сборка файла для поддержки (покрыт тестами)
   Views/                          MenuBarLabel, StatusPopoverView,
                                   SettingsView, EmptyStateView,
                                   OnboardingView, Hairline
   Services/DeviceEventWatcher.swift события usbmuxd → немедленный опрос
 Helpers/akb-direct/               помощник на C: заряд по IP, MAC, адрес, события
-Tests/AKBTests/                   53 теста, Swift Testing
+Tests/AKBTests/                   57 тестов, Swift Testing
 ```
 
 ```
 scripts/
+  dev/click-menubar.swift      клик по строке меню для снимков экрана
   bundle-libimobiledevice.sh   встраивает утилиты и dylib в бандл
   make-dmg.sh                  Release → dist/AKB-1.0.dmg
   package.sh                   Release → dist/AKB-1.0.zip

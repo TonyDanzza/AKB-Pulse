@@ -9,6 +9,8 @@ struct AKBApp: App {
 
     init() {
         Prefs.registerDefaults()
+        // Шапка в файловом логе — первое, что увидит тот, кому пришлют отчёт (план §19.1).
+        AKBLog.startSession()
         let monitor = BatteryMonitor()
         _monitor = State(initialValue: monitor)
         AppDelegate.monitor = monitor

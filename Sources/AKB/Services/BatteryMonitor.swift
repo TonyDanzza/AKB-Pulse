@@ -1,7 +1,6 @@
 import AppKit
 import Foundation
 import Observation
-import OSLog
 
 /// Состояние приложения: что показывать в строке меню и в popover.
 @MainActor
@@ -38,8 +37,6 @@ final class BatteryMonitor {
     }
 
     // MARK: - Внутреннее
-
-    static let log = Logger(subsystem: "ru.tonydanzza.akb", category: "monitor")
 
     private let provider: BatteryProvider
     private var policy: AlertPolicy
@@ -149,12 +146,12 @@ final class BatteryMonitor {
         timerTask?.cancel()
         timerTask = nil
         watcher?.stop()
-        Self.log.info("опрос приостановлен: экран спит или сессия заблокирована")
+        AKBLog.info(.monitor, "опрос приостановлен: экран спит или сессия заблокирована")
     }
 
     private func resume() {
         isPaused = false
-        Self.log.info("опрос возобновлён")
+        AKBLog.info(.monitor, "опрос возобновлён")
         watcher?.start()
         scheduleTimer()
         Task { await refresh(rediscover: true) }
@@ -182,9 +179,9 @@ final class BatteryMonitor {
         let seconds = pollDelay
         scheduledDelay = seconds
         if onPower {
-            Self.log.info("телефон на питании: следующий опрос через \(seconds, privacy: .public) с")
+            AKBLog.info(.monitor, "телефон на питании: следующий опрос через \(seconds) с")
         } else if lastPollFailed {
-            Self.log.info("повтор через \(seconds, privacy: .public) с после неудачи")
+            AKBLog.info(.monitor, "повтор через \(seconds) с после неудачи")
         }
         return seconds
     }
@@ -247,7 +244,7 @@ final class BatteryMonitor {
             // Пока телефон считается спящим, список устройств пуст — ищем заново каждый раз.
             if rediscover || devices.isEmpty || selectedDevice == nil || phase.isStale {
                 let found = try await provider.listDevices()
-                Self.log.info("найдено устройств: \(found.count, privacy: .public)")
+                AKBLog.info(.monitor, "найдено устройств: \(found.count)")
                 devices = found
                 selectedDevice = Self.pick(from: found, preferredUDID: Prefs.selectedUDID)
             }
@@ -262,10 +259,10 @@ final class BatteryMonitor {
             phase = .ready(status)
             evaluateAlert(status, device: device)
         } catch let error as ProviderError {
-            Self.log.info("опрос не удался: \(String(describing: error), privacy: .public)")
+            AKBLog.info(.monitor, "опрос не удался: \(String(describing: error))")
             fail(with: error)
         } catch {
-            Self.log.info("неожиданная ошибка: \(String(describing: error), privacy: .public)")
+            AKBLog.info(.monitor, "неожиданная ошибка: \(String(describing: error))")
             fail(with: .parseFailure)
         }
     }

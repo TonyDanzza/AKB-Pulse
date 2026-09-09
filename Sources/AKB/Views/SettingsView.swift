@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Сцена `Settings` (план §5.3). Только стандартные контролы, `Form` в стиле `.grouped`.
 struct SettingsView: View {
@@ -15,6 +16,7 @@ struct SettingsView: View {
 
     @State private var launchError: String?
     @State private var isDiscovering = false
+    @State private var isSavingLog = false
 
     var body: some View {
         Form {
@@ -24,7 +26,7 @@ struct SettingsView: View {
             systemSection
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 584)
+        .frame(width: 460, height: 664)
         .onAppear { launchAtLogin = LaunchAtLogin.isEnabled }
     }
 
@@ -163,6 +165,49 @@ struct SettingsView: View {
                 }
                 .controlSize(.small)
             }
+
+            logRow
+        }
+    }
+
+    // MARK: - Лог (план §19.2)
+
+    @ViewBuilder
+    private var logRow: some View {
+        LabeledContent(L("settings.log.title", "Лог приложения")) {
+            HStack(spacing: 8) {
+                if isSavingLog {
+                    ProgressView().controlSize(.small)
+                }
+                Button(L("settings.log.save", "Сохранить лог…")) { saveLog() }
+                    .controlSize(.small)
+                    .disabled(isSavingLog)
+            }
+        }
+
+        Text(L("settings.log.hint",
+               "В файле есть имя iPhone, его адрес в домашней сети и события приложения. Отправь его тому, кто помогает с настройкой."))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// Панель сохранения показываем сразу, а отчёт собираем после выбора файла:
+    /// `log show` может думать секунды, держать ради него панель закрытой незачем.
+    private func saveLog() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = SupportReport.suggestedFileName(now: Date())
+        panel.directoryURL = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
+        panel.canCreateDirectories = true
+        panel.allowedContentTypes = [.plainText]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        isSavingLog = true
+        Task {
+            let report = await SupportReport.make(now: Date())
+            try? report.write(to: url, atomically: true, encoding: .utf8)
+            isSavingLog = false
+            NSWorkspace.shared.activateFileViewerSelecting([url])
         }
     }
 }

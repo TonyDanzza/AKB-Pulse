@@ -1,12 +1,9 @@
 import Foundation
-import OSLog
 
 /// Реализация `BatteryProvider` поверх утилит libimobiledevice (`idevice_id`, `ideviceinfo`)
 /// и собственного помощника `akb-direct` для спящего телефона (план §16).
 /// Все вызовы `Process` идут через `ProcessRunner` — вне главного потока, с таймаутом 10 с.
 struct IMobileDeviceProvider: BatteryProvider {
-
-    static let log = Logger(subsystem: "ru.tonydanzza.akb", category: "provider")
 
     var timeout: TimeInterval = 10
     /// Окно повторов прямого чтения по IP. Телефон отвечает волнами (план §16.1).
@@ -61,7 +58,7 @@ struct IMobileDeviceProvider: BatteryProvider {
         // имя и модель сохранены с прошлого раза, адрес найдёт DeviceAddressResolver.
         guard !order.isEmpty else {
             guard let cached = cachedDevice() else { throw ProviderError.noDevice }
-            Self.log.info("usbmuxd пуст, устройство из кэша: \(cached.name, privacy: .public)")
+            AKBLog.info(.provider, "usbmuxd пуст, устройство из кэша: \(cached.name)")
             return [cached]
         }
 
@@ -107,9 +104,9 @@ struct IMobileDeviceProvider: BatteryProvider {
         let started = Date()
         if let status = try? await batteryViaUSBMux(device) {
             await resolver.warmCache(udid: device.udid)
-            Self.log.info("""
-                заряд \(status.percent, privacy: .public)% путём usbmuxd \
-                за \(String(format: "%.1f", Date().timeIntervalSince(started)), privacy: .public) с
+            AKBLog.info(.provider, """
+                заряд \(status.percent)% путём usbmuxd \
+                за \(String(format: "%.1f", Date().timeIntervalSince(started))) с
                 """)
             return status
         }
@@ -150,20 +147,20 @@ struct IMobileDeviceProvider: BatteryProvider {
                 guard let status = IMobileDeviceOutputParser.battery(result.stdout) else {
                     throw ProviderError.parseFailure
                 }
-                Self.log.info("""
-                    заряд \(status.percent, privacy: .public)% путём direct \
-                    (\(resolved.ip, privacy: .public), адрес: \(resolved.source.rawValue, privacy: .public), \
-                    попытка \(attempt + 1, privacy: .public)) \
-                    за \(String(format: "%.1f", Date().timeIntervalSince(started)), privacy: .public) с
+                AKBLog.info(.provider, """
+                    заряд \(status.percent)% путём direct \
+                    (\(resolved.ip), адрес: \(resolved.source.rawValue), \
+                    попытка \(attempt + 1)) \
+                    за \(String(format: "%.1f", Date().timeIntervalSince(started))) с
                     """)
                 return status
             }
             return status
         } catch {
             await resolver.invalidate(udid: device.udid)
-            Self.log.info("""
-                direct не ответил за \(String(format: "%.0f", Date().timeIntervalSince(started)), privacy: .public) с \
-                (\(resolved.ip, privacy: .public)), адрес забыт
+            AKBLog.info(.provider, """
+                direct не ответил за \(String(format: "%.0f", Date().timeIntervalSince(started))) с \
+                (\(resolved.ip)), адрес забыт
                 """)
             if let providerError = error as? ProviderError { throw providerError }
             throw ProviderError.deviceUnreachable(device.udid)

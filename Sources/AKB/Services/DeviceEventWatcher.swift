@@ -1,5 +1,4 @@
 import Foundation
-import OSLog
 
 /// Слушает события usbmuxd через помощник `akb-direct watch` и дёргает опрос
 /// сразу, как телефон появился или пропал (план §18.1).
@@ -9,8 +8,6 @@ import OSLog
 /// появлялся и пропадал с опозданием до двух минут.
 @MainActor
 final class DeviceEventWatcher {
-
-    static let log = Logger(subsystem: "ru.tonydanzza.akb", category: "events")
 
     /// События приходят пачкой (телефон объявляется сразу по нескольким
     /// транспортам) — опрос делаем один, через паузу.
@@ -57,7 +54,7 @@ final class DeviceEventWatcher {
     /// Возвращает `false`, если поднимать заново бессмысленно (нет помощника).
     private func runOnce() async -> Bool {
         guard let tool = ToolLocator.locate("akb-direct") else {
-            Self.log.info("akb-direct не найден, события usbmuxd недоступны")
+            AKBLog.info(.events, "akb-direct не найден, события usbmuxd недоступны")
             return false
         }
 
@@ -84,7 +81,7 @@ final class DeviceEventWatcher {
         }
 
         self.process = process
-        Self.log.info("слушаю события usbmuxd")
+        AKBLog.info(.events, "слушаю события usbmuxd")
 
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             let once = OnceFlag()
@@ -94,7 +91,7 @@ final class DeviceEventWatcher {
             do {
                 try process.run()
             } catch {
-                Self.log.info("не удалось запустить akb-direct watch: \(String(describing: error), privacy: .public)")
+                AKBLog.info(.events, "не удалось запустить akb-direct watch: \(String(describing: error))")
                 if once.take() { continuation.resume() }
             }
         }
@@ -116,7 +113,7 @@ final class DeviceEventWatcher {
            selected.caseInsensitiveCompare(udid) != .orderedSame {
             return
         }
-        Self.log.info("событие \(parts[0], privacy: .public) \(udid, privacy: .public) → опрос")
+        AKBLog.info(.events, "событие \(parts[0]) \(udid) → опрос")
         poke()
     }
 

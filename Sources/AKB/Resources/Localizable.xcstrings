@@ -852,6 +852,57 @@
         }
       }
     },
+    "settings.log.hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The file contains your iPhone's name, its address on your home network and the app's events. Send it to whoever is helping you set things up."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В файле есть имя iPhone, его адрес в домашней сети и события приложения. Отправь его тому, кто помогает с настройкой."
+          }
+        }
+      }
+    },
+    "settings.log.save": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save Log…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранить лог…"
+          }
+        }
+      }
+    },
+    "settings.log.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App log"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Лог приложения"
+          }
+        }
+      }
+    },
     "settings.noDevices": {
       "extractionState": "manual",
       "localizations": {
