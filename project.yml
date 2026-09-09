@@ -26,6 +26,23 @@ settings:
     SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
 
 targets:
+  # Помощник для прямого запроса к спящему iPhone по IP (план §16.2).
+  akb-direct:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Helpers/akb-direct
+    settings:
+      base:
+        PRODUCT_NAME: akb-direct
+        # -isystem, а не HEADER_SEARCH_PATHS: заголовки Homebrew шумят
+        # предупреждениями (-Wstrict-prototypes, -Wdocumentation), а чинить их не наше дело.
+        OTHER_CFLAGS: "$(inherited) -isystem /opt/homebrew/include"
+        LIBRARY_SEARCH_PATHS: "$(inherited) /opt/homebrew/lib"
+        OTHER_LDFLAGS: "$(inherited) -limobiledevice-1.0 -lplist-2.0 -lusbmuxd-2.0"
+        GCC_C_LANGUAGE_STANDARD: gnu17
+        CODE_SIGN_IDENTITY: "-"
+
   AKB:
     type: application
     platform: macOS
@@ -54,16 +71,22 @@ targets:
         CFBundleLocalizations:
           - en
           - ru
+    dependencies:
+      - target: akb-direct
+        embed: false
+        link: false
     preBuildScripts: []
     postCompileScripts: []
     postBuildScripts:
       - script: |
+          AKB_DIRECT_BIN="$BUILT_PRODUCTS_DIR/akb-direct" \
           "$SRCROOT/scripts/bundle-libimobiledevice.sh" \
               "$BUILT_PRODUCTS_DIR/$WRAPPER_NAME"
         name: Встроить libimobiledevice
         basedOnDependencyAnalysis: false
         outputFiles:
           - $(BUILT_PRODUCTS_DIR)/$(WRAPPER_NAME)/Contents/Helpers/ideviceinfo
+          - $(BUILT_PRODUCTS_DIR)/$(WRAPPER_NAME)/Contents/Helpers/akb-direct
     entitlements:
       path: Sources/AKB/Resources/AKB.entitlements
       properties:
@@ -87,6 +110,7 @@ schemes:
   AKB:
     build:
       targets:
+        akb-direct: all
         AKB: all
         AKBTests: [test]
     run:

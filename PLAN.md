@@ -296,3 +296,54 @@ AKB/
 2. **Настройки: убрать строку «libimobiledevice / встроен в приложение / Указать путь…».** Инструменты встроены в бандл, ручной путь никому не нужен. Удалить из `SettingsView`, удалить связанный код (`Prefs`-ключ пути, `NSOpenPanel`, строки локализации) — но **порядок поиска в `ToolLocator` оставить** (бандл → /opt/homebrew/bin → /usr/local/bin) как тихий запасной вариант; убрать только ветку «путь из настроек». Тесты должны остаться зелёными.
 3. После удаления строки окно настроек, скорее всего, влезет в 560 pt целиком без скролла — проверить и подогнать высоту так, чтобы всё видно и снизу был стандартный отступ формы. Дополнительно, чтобы форма выглядела как системные Настройки: кнопки «Обновить список» и «Показать инструкцию…» перевести в `LabeledContent`-строки («Список устройств» → кнопка `.controlSize(.small)` справа; «Инструкция по подключению» → кнопка справа).
 4. Скриншоты в `screenshots/v3/`: `popover-nodevice.png`, `settings.png`. Коммит «Фаза 3.1: список шагов и настройки без лишней строки». Пересобрать DMG.
+
+## 16. Фаза 4 — заряд спящего iPhone: прямое подключение по IP (2026-09-09 16:20)
+
+Пользователь отверг вариант «показывать старое число»: он хочет знать заряд телефона, который лежит и не трогается. Fable провёл эксперимент — способ есть.
+
+### 16.1 Факты, проверенные Fable на живом телефоне (не перепроверять, использовать)
+- Спящий iPhone на батарее **не** публикует Bonjour-запись `_apple-mobdev2._tcp`, поэтому `idevice_id -n` пуст. Но Wi‑Fi он не отключает: порт lockdownd **62078** на его IP (`192.168.1.11`, hostname `iPhone-Toni.local`) открыт **волнами** — 5–15 с доступен, 10–30 с нет (телефон просыпается для push). За 2 минуты наблюдений usbmuxd не увидел телефон ни разу, прямой TCP-запрос успешно снял заряд 5 раз из 14.
+- Запись сопряжения читается без root через Apple usbmuxd: `usbmuxd_read_pair_record(udid, …)` (libusbmuxd, публичный API). В ней есть `WiFiMACAddress` = `34:10:be:d8:21:09`, и он **совпадает** с MAC телефона в `arp -an` (Private Wi‑Fi Address фиксирован для этой сети). Значит IP можно находить по MAC, даже если DHCP его сменит. VPN на LAN-адрес не влияет: VPN добавляет туннельный адрес, домашний остаётся.
+- Прототип помощника на C **работает**: `/private/tmp/claude-501/-Users-tonydanzza-Documents-AKB/ade2693a-4ec1-4adc-8ea5-0d2d2fe9efd8/scratchpad/akb-direct.c` (скопировать в репозиторий как есть, затем дорабатывать). Он создаёт `idevice_private` вручную с `CONNECTION_NETWORK` и `sockaddr_in` телефона (структура из `src/idevice.h` libimobiledevice 1.4.0 — приватная, поэтому версия библиотеки **пиннится**: bundle-скрипт должен падать, если `brew list --versions libimobiledevice` ≠ 1.4.0), затем `lockdownd_client_new_with_handshake` (сам берёт pair record из usbmuxd, делает TLS) и `lockdownd_get_value(client, "com.apple.mobile.battery", NULL, …)`. Вывод в формате `ideviceinfo -q` («Key: value» построчно) — существующий `IMobileDeviceOutputParser` парсит его без изменений. Сборка: `clang -I/opt/homebrew/include -L/opt/homebrew/lib -limobiledevice-1.0 -lplist-2.0`. Коды: 0 ок, 3 рукопожатие не удалось (телефон в этот момент спит/недоступен), 4 GetValue не удался.
+
+### 16.2 Помощник `akb-direct` в бандле
+- Исходник `Helpers/akb-direct/akb-direct.c`. Цель в `project.yml`: target `akb-direct`, type `tool`, platform macOS, C; `HEADER_SEARCH_PATHS=/opt/homebrew/include`, `LIBRARY_SEARCH_PATHS=/opt/homebrew/lib`, `OTHER_LDFLAGS=-limobiledevice-1.0 -lplist-2.0 -lusbmuxd-2.0`. AKB зависит от него; bundle-скрипт копирует продукт в `AKB.app/Contents/Helpers/` и переписывает install names так же, как для `idevice_id`/`ideviceinfo` (dylib уже в `Frameworks/`), потом ad-hoc подпись. `otool -L` без `/opt/homebrew` — как раньше.
+- Три режима CLI:
+  1. `akb-direct battery <ip> <udid>` — как прототип (домен фиксирован).
+  2. `akb-direct mac <udid>` — печатает `WiFiMACAddress` из pair record (`usbmuxd_read_pair_record` + libplist), нормализованный вид `aa:bb:cc:dd:ee:ff` в нижнем регистре с ведущими нулями.
+  3. `akb-direct addr <udid>` — если usbmuxd сейчас видит устройство по сети (`usbmuxd_get_device_list`, `conn_type == CONNECTION_TYPE_NETWORK`), печатает его IPv4 из `conn_data` (`sockaddr_in`); IPv6 link-local пропускать (нужен IPv4). Код 5 — не найдено.
+- Таймаут соединения: `socket_connect_addr` внутри библиотеки; в тесте неуспех возвращался быстро (ошибка -8). Дополнительно в Swift `ProcessRunner` с таймаутом 8 с.
+
+### 16.3 Поиск IP (`DeviceAddressResolver`, Swift, actor)
+Цепочка для выбранного UDID, каждый шаг проверяется реальным запросом батареи (рукопожатие с pair record пройдёт только у нужного телефона — чужой IP просто даст код 3):
+1. Кэш `Prefs.lastKnownIP[udid]`.
+2. Если usbmuxd видит устройство — `akb-direct addr` → обновить кэш.
+3. MAC из `akb-direct mac` (кэшировать в Prefs) → `/usr/sbin/arp -an` → IP. **Внимание:** `arp` печатает MAC без ведущих нулей (`34:10:be:d8:21:9`) — нормализовать обе стороны перед сравнением. Чистая функция `ARPTable.parse(_:) -> [MAC: IP]` с тестами.
+4. Ничего не нашли → `.deviceUnreachable`.
+При успехе шага 3 обновить кэш IP.
+
+### 16.4 Провайдер (`IMobileDeviceProvider.battery(for:)`)
+- Сначала как сейчас — `ideviceinfo -n -u <udid> -q com.apple.mobile.battery` (быстро, когда телефон виден).
+- Если не удалось — прямой путь: **окно повторов 40 с, попытка каждые 3 с** (`akb-direct battery <ip> <udid>`), потому что телефон отвечает волнами. Первый успех — возврат. Окно и шаг — параметры init (для тестов). Всё это внутри `battery(for:)`, `BatteryMonitor` не знает о деталях; `isRefreshing` остаётся true на время окна (кнопка «Обновить» крутит спиннер).
+- Транспорт для отображения — `.wifi` в обоих случаях. В лог (`os.Logger`) писать, каким путём получен ответ и за сколько секунд — это нужно для приёмки.
+- `listDevices()` — если usbmuxd пуст, но в Prefs есть сохранённый UDID с именем/моделью и кэшированным IP или MAC — вернуть это устройство из кэша (иначе `selectedDevice == nil` и до батареи дело не дойдёт). Сохранять имя/ProductType устройства в Prefs при каждом успешном `listDevices`.
+
+### 16.5 Монитор и UI — «данные с возрастом» вместо «не найден»
+- `.ready` сохраняется, пока есть данные. Если последний успешный ответ старше **15 мин** — строка состояния в popover: `moon.zzz.fill` `.secondary` + «Нет связи · данные 14:32» (разделитель — `Hairline`, не точка), полоса `.secondary`; строка меню — иконка+число с opacity 0.55. Старше **12 ч** — `.failed(.deviceUnreachable)` с текущим пустым состоянием. Уведомления о низком заряде — только по свежим данным.
+- Тексты: `state.noLink` «Нет связи», `popover.dataAt` «данные %@» (en: "No link", "data %@").
+
+### 16.6 Энергия
+- Пауза опроса при `NSWorkspace.screensDidSleepNotification` и при блокировке сессии (`NSWorkspace.sessionDidResignActiveNotification`); возобновление + немедленный опрос на `screensDidWakeNotification` / `sessionDidBecomeActiveNotification`. Таймер — как сейчас.
+- README, раздел «Расход батареи»: 3 предложения — один запрос это несколько пакетов и короткий TLS, телефон мы не будим, попытки к спящему телефону до него не доходят; при спящем экране Mac опрос стоит.
+
+### 16.7 Тесты (Swift Testing)
+- `ARPTableTests`: парсинг реального вывода `arp -an` (пример строки: `? (192.168.1.11) at 34:10:be:d8:21:9 on en0 ifscope [ethernet]`), нормализация MAC, несколько интерфейсов, `incomplete`.
+- `DeviceAddressResolverTests` с фейковыми исполнителями: кэш → addr → arp → пусто.
+- `RetryWindowTests`: окно 40/3 с инжектированными часами — прекращается по первому успеху, отдаёт последнюю ошибку по истечении.
+- Старые 24 теста зелёные.
+
+### 16.8 Приёмка
+- Сборка без warnings; `otool -L` по `Helpers/akb-direct` без `/opt/homebrew`; DMG пересобран.
+- **Главное:** приложение в реальном режиме, телефон лежит нетронутый ≥ 10 минут. В `log stream --predicate 'process == "AKB"'` видны успешные прямые чтения при пустом `idevice_id -n`. В строке меню — живой процент без приглушения. Скриншот `screenshots/v4/menubar-direct.png` + фрагмент лога в отчёт. Если телефон в этот момент на зарядке или разблокирован — это не считается, дождаться сна (обычно ≤ 5 мин после блокировки).
+- Проверить деградацию: убрать кэш IP (`defaults delete ru.tonydanzza.akb lastKnownIP`) — цепочка должна найти IP через `mac`+`arp` без участия usbmuxd.
+- Коммиты: (1) помощник + bundle-скрипт, (2) resolver + провайдер + тесты, (3) UI/энергия/README. Последняя строка коммита `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.

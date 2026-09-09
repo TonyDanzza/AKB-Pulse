@@ -1,11 +1,11 @@
 #!/bin/bash
-# Кладёт idevice_id и ideviceinfo вместе со всеми не-системными dylib
+# Кладёт idevice_id, ideviceinfo и akb-direct вместе со всеми не-системными dylib
 # внутрь AKB.app, чтобы приложению не нужен был Homebrew.
 #
 #   ./scripts/bundle-libimobiledevice.sh <путь к AKB.app>
 #
 # Вызывается как Run Script build phase (до подписи) и из package.sh.
-# Результат: Contents/Helpers/{idevice_id,ideviceinfo},
+# Результат: Contents/Helpers/{idevice_id,ideviceinfo,akb-direct},
 #            Contents/Frameworks/*.dylib,
 #            Contents/Resources/Licenses/.
 set -euo pipefail
@@ -22,6 +22,18 @@ if [ ! -x "$SRC_BIN/idevice_id" ]; then
     exit 0
 fi
 
+# akb-direct повторяет приватную struct idevice_private из src/idevice.h.
+# На другой версии библиотеки раскладка полей может поехать — версию пиним (план §16.2).
+REQUIRED_LIBIMOBILEDEVICE="1.4.0"
+if command -v brew >/dev/null 2>&1; then
+    HAVE="$(brew list --versions libimobiledevice 2>/dev/null | awk '{print $2}')"
+    if [ -n "$HAVE" ] && [ "$HAVE" != "$REQUIRED_LIBIMOBILEDEVICE" ]; then
+        echo "error: нужен libimobiledevice $REQUIRED_LIBIMOBILEDEVICE, установлен $HAVE."
+        echo "       akb-direct использует приватную структуру из этой версии."
+        exit 1
+    fi
+fi
+
 HELPERS="$APP/Contents/Helpers"
 FRAMEWORKS="$APP/Contents/Frameworks"
 LICENSES="$APP/Contents/Resources/Licenses"
@@ -29,10 +41,21 @@ rm -rf "$HELPERS"
 mkdir -p "$HELPERS" "$FRAMEWORKS" "$LICENSES"
 
 # --- 1. Копируем сами утилиты -------------------------------------------------
-for tool in idevice_id ideviceinfo; do
+TOOLS=(idevice_id ideviceinfo)
+for tool in "${TOOLS[@]}"; do
     cp -f "$SRC_BIN/$tool" "$HELPERS/$tool"
     chmod u+w "$HELPERS/$tool"
 done
+
+# Свой помощник akb-direct собирается целью проекта, а не берётся из Homebrew.
+DIRECT="${AKB_DIRECT_BIN:-${BUILT_PRODUCTS_DIR:-}/akb-direct}"
+if [ -x "$DIRECT" ]; then
+    cp -f "$DIRECT" "$HELPERS/akb-direct"
+    chmod u+w "$HELPERS/akb-direct"
+    TOOLS+=(akb-direct)
+else
+    echo "warning: akb-direct не найден ($DIRECT) — прямой доступ по IP будет недоступен"
+fi
 
 # --- 2. Рекурсивно собираем не-системные зависимости --------------------------
 # Системными считаем /usr/lib и /System — их копировать нельзя и не нужно.
@@ -61,7 +84,7 @@ collect() {
     done < <(otool -L "$binary" | tail -n +2 | awk '{print $1}')
 }
 
-for tool in idevice_id ideviceinfo; do
+for tool in "${TOOLS[@]}"; do
     collect "$HELPERS/$tool"
 done
 
@@ -76,7 +99,7 @@ retool() {
     return 0
 }
 
-for tool in idevice_id ideviceinfo; do
+for tool in "${TOOLS[@]}"; do
     otool -L "$HELPERS/$tool" | tail -n +2 | awk '{print $1}' | while read -r dep; do
         is_system "$dep" && continue
         retool -change "$dep" \
@@ -98,7 +121,7 @@ for lib in "$FRAMEWORKS"/*.dylib; do
     [ -e "$lib" ] || continue
     codesign --force --sign - --timestamp=none "$lib" 2>/dev/null
 done
-for tool in idevice_id ideviceinfo; do
+for tool in "${TOOLS[@]}"; do
     codesign --force --sign - --timestamp=none "$HELPERS/$tool" 2>/dev/null
 done
 
@@ -143,4 +166,4 @@ else
 fi
 
 [ $FAIL -eq 0 ] || exit 1
-echo "note: встроено $(ls "$FRAMEWORKS" | wc -l | tr -d ' ') библиотек и 2 утилиты"
+echo "note: встроено $(ls "$FRAMEWORKS" | wc -l | tr -d ' ') библиотек и ${#TOOLS[@]} утилиты"
