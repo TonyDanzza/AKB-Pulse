@@ -94,6 +94,15 @@ actor DeviceAddressResolver {
         return nil
     }
 
+    /// Телефон сейчас виден usbmuxd — самое время запомнить его адрес, пока он
+    /// отдаётся даром. Спящий телефон из usbmuxd пропадает, и спросить будет уже некого.
+    func warmCache(udid: String) async {
+        guard cache.ip(for: udid) == nil else { return }
+        guard let ip = await addressFromUSBMux(udid: udid) else { return }
+        cache.setIP(ip, for: udid)
+        Self.log.info("адрес запомнен, пока телефон виден: \(ip, privacy: .public)")
+    }
+
     /// Кэш адреса больше не верен: телефон переехал или его тут нет.
     func invalidate(udid: String) {
         cache.setIP(nil, for: udid)
@@ -102,27 +111,52 @@ actor DeviceAddressResolver {
     // MARK: - Шаги цепочки
 
     private func addressFromUSBMux(udid: String) async -> String? {
-        guard let result = try? await executor.run("akb-direct", ["addr", udid], timeout: timeout),
-              result.status == 0 else { return nil }
+        guard let result = try? await executor.run("akb-direct", ["addr", udid], timeout: timeout) else {
+            Self.log.info("akb-direct addr не запустился")
+            return nil
+        }
+        guard result.status == 0 else {
+            Self.log.debug("akb-direct addr: код \(result.status, privacy: .public)")
+            return nil
+        }
         let ip = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         return ARPTable.isIPv4(ip) ? ip : nil
     }
 
     private func addressFromARP(udid: String) async -> String? {
-        guard let mac = await wifiMAC(udid: udid) else { return nil }
+        guard let mac = await wifiMAC(udid: udid) else {
+            Self.log.info("MAC телефона неизвестен")
+            return nil
+        }
         guard let arp = try? await executor.run("/usr/sbin/arp", ["-an"], timeout: timeout),
-              arp.status == 0 else { return nil }
-        return ARPTable.address(of: mac, in: arp.stdout)
+              arp.status == 0 else {
+            Self.log.info("arp -an не отработал")
+            return nil
+        }
+        guard let ip = ARPTable.address(of: mac, in: arp.stdout) else {
+            Self.log.info("в arp нет записи для \(mac, privacy: .public)")
+            return nil
+        }
+        return ip
     }
+
 
     /// MAC телефона в этой сети. Он фиксирован (Private Wi-Fi Address держится за сеть),
     /// поэтому читаем один раз и храним в кэше.
     private func wifiMAC(udid: String) async -> String? {
         if let cached = cache.mac(for: udid), let mac = ARPTable.normalize(cached) { return mac }
-        guard let result = try? await executor.run("akb-direct", ["mac", udid], timeout: timeout),
-              result.status == 0,
+        guard let result = try? await executor.run("akb-direct", ["mac", udid], timeout: timeout) else {
+            Self.log.info("akb-direct mac не запустился")
+            return nil
+        }
+        guard result.status == 0,
               let mac = ARPTable.normalize(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines))
-        else { return nil }
+        else {
+            Self.log.info("""
+                akb-direct mac: код \(result.status, privacy: .public),                 \(result.stderr.trimmingCharacters(in: .whitespacesAndNewlines), privacy: .public)
+                """)
+            return nil
+        }
         cache.setMAC(mac, for: udid)
         return mac
     }

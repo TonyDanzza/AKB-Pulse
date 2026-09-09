@@ -106,6 +106,7 @@ struct IMobileDeviceProvider: BatteryProvider {
     func battery(for device: PhoneDevice) async throws -> BatteryStatus {
         let started = Date()
         if let status = try? await batteryViaUSBMux(device) {
+            await resolver.warmCache(udid: device.udid)
             Self.log.info("""
                 заряд \(status.percent, privacy: .public)% путём usbmuxd \
                 за \(String(format: "%.1f", Date().timeIntervalSince(started)), privacy: .public) с

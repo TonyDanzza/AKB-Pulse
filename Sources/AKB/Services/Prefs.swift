@@ -85,11 +85,10 @@ enum Prefs {
         if !device.productType.isEmpty { deviceProductTypes[device.udid] = device.productType }
     }
 
-    /// Телефон из кэша — только если про него известно, куда стучаться (IP или MAC).
+    /// Телефон, который приложение уже видело. Куда стучаться, разберётся
+    /// `DeviceAddressResolver`: адрес он найдёт и по записи сопряжения с `arp`.
     static func cachedDevice(udid: String) -> PhoneDevice? {
-        guard let name = deviceNames[udid],
-              lastKnownIP[udid] != nil || lastKnownMAC[udid] != nil
-        else { return nil }
+        guard let name = deviceNames[udid] else { return nil }
         return PhoneDevice(udid: udid,
                            name: name,
                            productType: deviceProductTypes[udid] ?? "",

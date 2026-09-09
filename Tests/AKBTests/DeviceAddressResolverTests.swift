@@ -118,7 +118,8 @@ struct DeviceAddressResolverTests {
     @Test("Сброс кэша после неудачного окна повторов")
     func invalidate() async {
         let cache = MemoryCache(ip: "192.168.1.11")
-        let resolver = DeviceAddressResolver(executor: FakeExecutor(responses: [:]), cache: cache)
+        let resolver = DeviceAddressResolver(executor: FakeExecutor(responses: [:]),
+                                             cache: cache)
         await resolver.invalidate(udid: "UDID")
         #expect(cache.ip(for: "UDID") == nil)
         // MAC остаётся: он не меняется вместе с адресом.
