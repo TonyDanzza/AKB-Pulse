@@ -12,6 +12,8 @@ struct IMobileDeviceProvider: BatteryProvider {
     /// Окно повторов прямого чтения по IP. Телефон отвечает волнами (план §16.1).
     var retry = RetryWindow()
     var resolver = DeviceAddressResolver()
+    /// Настойчивый первый поиск телефона в Bonjour: 15 с шагом 3 с (см. listDevices).
+    var discovery = RetryWindow(window: 15, interval: 3)
 
     private func tool(_ name: String) throws -> URL {
         guard let url = ToolLocator.locate(name) else { throw ProviderError.toolNotFound }
@@ -29,29 +31,38 @@ struct IMobileDeviceProvider: BatteryProvider {
         var transports: [String: PhoneDevice.Transport] = [:]
         var order: [String] = []
 
-        for (flag, transport) in [("-n", PhoneDevice.Transport.wifi), ("-l", .usb)] {
-            let result = try? await ProcessRunner.run(ideviceID, arguments: [flag], timeout: timeout)
-            guard let result else { continue }
-            for udid in IMobileDeviceOutputParser.udidList(result.stdout) {
-                if transports[udid] == nil {
-                    transports[udid] = transport
-                    order.append(udid)
+        func scan() async {
+            for (flag, transport) in [("-n", PhoneDevice.Transport.wifi), ("-l", .usb)] {
+                let result = try? await ProcessRunner.run(ideviceID, arguments: [flag], timeout: timeout)
+                guard let result else { continue }
+                for udid in IMobileDeviceOutputParser.udidList(result.stdout) {
+                    if transports[udid] == nil {
+                        transports[udid] = transport
+                        order.append(udid)
+                    }
                 }
+            }
+        }
+
+        await scan()
+
+        // Первое знакомство: про телефон ничего не известно, а Bonjour-запись он
+        // публикует такими же короткими волнами, как держит открытым lockdownd, —
+        // за один опрос в неё почти не попасть. Поэтому, пока кэша нет, ищем
+        // настойчивее. Как только телефон найден хоть раз, эта ветка не работает.
+        if order.isEmpty, cachedDevice() == nil {
+            try? await discovery.run { _ in
+                await scan()
+                if order.isEmpty { throw ProviderError.noDevice }
             }
         }
 
         // Спящий телефон исчезает из usbmuxd целиком. Тогда берём его из памяти:
         // имя и модель сохранены с прошлого раза, адрес найдёт DeviceAddressResolver.
         guard !order.isEmpty else {
-            if let udid = Prefs.selectedUDID, let cached = Prefs.cachedDevice(udid: udid) {
-                Self.log.info("usbmuxd пуст, устройство из кэша: \(cached.name, privacy: .public)")
-                return [cached]
-            }
-            if let (udid, _) = Prefs.deviceNames.first, let cached = Prefs.cachedDevice(udid: udid) {
-                Self.log.info("usbmuxd пуст, устройство из кэша: \(cached.name, privacy: .public)")
-                return [cached]
-            }
-            throw ProviderError.noDevice
+            guard let cached = cachedDevice() else { throw ProviderError.noDevice }
+            Self.log.info("usbmuxd пуст, устройство из кэша: \(cached.name, privacy: .public)")
+            return [cached]
         }
 
         var devices: [PhoneDevice] = []
@@ -66,6 +77,13 @@ struct IMobileDeviceProvider: BatteryProvider {
             devices.append(device)
         }
         return devices
+    }
+
+    /// Телефон, про который уже известно имя и куда стучаться.
+    private func cachedDevice() -> PhoneDevice? {
+        if let udid = Prefs.selectedUDID, let cached = Prefs.cachedDevice(udid: udid) { return cached }
+        if let udid = Prefs.deviceNames.keys.sorted().first { return Prefs.cachedDevice(udid: udid) }
+        return nil
     }
 
     private func value(forKey key: String, udid: String, transport: PhoneDevice.Transport) async throws -> String {

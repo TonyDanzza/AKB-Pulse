@@ -41,6 +41,8 @@ targets:
         LIBRARY_SEARCH_PATHS: "$(inherited) /opt/homebrew/lib"
         OTHER_LDFLAGS: "$(inherited) -limobiledevice-1.0 -lplist-2.0 -lusbmuxd-2.0"
         GCC_C_LANGUAGE_STANDARD: gnu17
+        # Библиотеки Homebrew собраны только под arm64, универсальный Release не слинкуется.
+        ARCHS: arm64
         CODE_SIGN_IDENTITY: "-"
 
   AKB:
