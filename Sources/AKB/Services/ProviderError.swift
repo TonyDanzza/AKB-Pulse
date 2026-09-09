@@ -19,16 +19,6 @@ enum ProviderError: Error, Equatable, Sendable {
         }
     }
 
-    var descriptionKey: String {
-        switch self {
-        case .toolNotFound: "error.toolNotFound.description"
-        case .noDevice: "error.noDevice.description"
-        case .deviceUnreachable: "error.deviceUnreachable.description"
-        case .parseFailure: "error.parseFailure.description"
-        case .timeout: "error.timeout.description"
-        }
-    }
-
     var symbolName: String {
         switch self {
         case .toolNotFound: "exclamationmark.triangle"

@@ -1,7 +1,12 @@
 import AppKit
 import SwiftUI
 
-/// Нативные пустые состояния (план §5.4) на `ContentUnavailableView`.
+/// Пустые состояния popover (план §5.4, §15.1).
+///
+/// Собрано вручную, а не на `ContentUnavailableView`: тот центрирует себя в доступной
+/// высоте и требует заданного `minHeight` (иначе схлопывается в ноль), из-за чего над
+/// иконкой оставалось пустого места больше, чем текста. Ручная раскладка — те же
+/// нативные элементы, но отступы под контролем: сетка 4 pt, шаги списком по 6 pt.
 struct EmptyStateView: View {
 
     var error: ProviderError
@@ -9,41 +14,82 @@ struct EmptyStateView: View {
     var onRetry: () -> Void
 
     var body: some View {
-        ContentUnavailableView {
-            Label(title, systemImage: symbol)
-        } description: {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(descriptionText)
-                    .multilineTextAlignment(.leading)
-                if error == .toolNotFound {
-                    HStack(spacing: 6) {
-                        Text(Self.brewCommand)
-                            .font(.system(.caption, design: .monospaced))
-                            .textSelection(.enabled)
-                        Button {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(Self.brewCommand, forType: .string)
-                        } label: {
-                            Image(systemName: SymbolName.copy)
-                        }
-                        .buttonStyle(.borderless)
-                        .help(L("empty.copy", "Скопировать команду"))
-                    }
-                }
-                if let lastKnown, error != .toolNotFound {
-                    Text(String(format: L("empty.lastKnown", "Последний известный заряд: %1$d%% (%2$@)"),
-                                lastKnown.percent,
-                                Self.timeFormatter.string(from: lastKnown.updatedAt)))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-        } actions: {
+        VStack(spacing: 0) {
+            Image(systemName: symbol)
+                .font(.system(size: 34, weight: .regular))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 10)
+
+            Text(title)
+                .font(.headline)
+                .multilineTextAlignment(.center)
+                .padding(.bottom, 8)
+
+            details
+                .padding(.bottom, 12)
+
             Button(L("empty.retry", "Проверить снова"), systemImage: SymbolName.refresh, action: onRetry)
                 .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Тело: список шагов или абзац
+
+    @ViewBuilder
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let steps {
+                stepList(steps)
+            } else {
+                Text(descriptionText)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if error == .toolNotFound {
+                HStack(spacing: 6) {
+                    Text(Self.brewCommand)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(Self.brewCommand, forType: .string)
+                    } label: {
+                        Image(systemName: SymbolName.copy)
+                    }
+                    .buttonStyle(.borderless)
+                    .help(L("empty.copy", "Скопировать команду"))
+                }
+            }
+
+            if let lastKnown, error != .toolNotFound {
+                Text(String(format: L("empty.lastKnown", "Последний известный заряд: %1$d%% (%2$@)"),
+                            lastKnown.percent,
+                            Self.timeFormatter.string(from: lastKnown.updatedAt)))
+            }
+        }
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Нумерованный список: номер фиксированной ширины, текст переносится своим блоком.
+    private func stepList(_ steps: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("\(index + 1).")
+                        .monospacedDigit()
+                        .frame(width: 16, alignment: .trailing)
+                    Text(step)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
     }
 
     private static let brewCommand = "brew install libimobiledevice"
@@ -74,19 +120,27 @@ struct EmptyStateView: View {
         }
     }
 
+    /// Пошаговая инструкция там, где она есть; иначе `nil` и показывается абзац.
+    private var steps: [String]? {
+        guard error == .noDevice else { return nil }
+        return [
+            L("error.noDevice.step1", "Подключи iPhone кабелем."),
+            L("error.noDevice.step2",
+              "Finder → iPhone → Основные → включи «Показывать этот iPhone, если он подключён к Wi‑Fi»."),
+            L("error.noDevice.step3", "Нажми «Доверять» на телефоне."),
+            L("error.noDevice.step4", "Отключи кабель — Mac и iPhone должны быть в одной сети Wi‑Fi."),
+            L("error.noDevice.step5",
+              "Если на Mac или iPhone включён VPN — разреши в нём доступ к локальной сети или выключи его на время поиска.")
+        ]
+    }
+
     private var descriptionText: String {
         switch error {
         case .toolNotFound:
             L("error.toolNotFound.description",
               "Приложение читает заряд утилитой ideviceinfo. Установи её через Homebrew:")
         case .noDevice:
-            L("error.noDevice.description", """
-              1. Подключи iPhone кабелем.
-              2. Finder → iPhone → Основные → включи «Показывать этот iPhone, если он подключён к Wi‑Fi».
-              3. Нажми «Доверять» на телефоне.
-              4. Отключи кабель — Mac и iPhone должны быть в одной сети Wi‑Fi.
-              5. Если на Mac или iPhone включён VPN — разреши в нём доступ к локальной сети или выключи его на время поиска.
-              """)
+            ""
         case .deviceUnreachable:
             L("error.deviceUnreachable.description",
               "iPhone не отвечает. Проверь, что он включён, разблокирован и в той же сети Wi‑Fi, что и Mac.")

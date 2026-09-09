@@ -10,7 +10,6 @@ enum Prefs {
         static let notifyLowBattery = "notifyLowBattery"
         static let lowThreshold = "lowThreshold"
         static let repeatEveryTen = "repeatEveryTen"
-        static let toolDirectory = "toolDirectory"
         static let launchAtLogin = "launchAtLogin"
     }
 

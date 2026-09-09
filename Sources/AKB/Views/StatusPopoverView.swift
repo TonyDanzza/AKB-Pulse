@@ -24,13 +24,13 @@ struct StatusPopoverView: View {
                     .padding(.bottom, 12)
 
             case .failed(let error):
-                // ContentUnavailableView схлопывается в ноль, если ему не задать высоту:
-                // в окне MenuBarExtra нет «свободного места», под которое он рассчитан.
+                // EmptyStateView собран вручную и меряется по содержимому — фиксированная
+                // высота ему больше не нужна (раньше её требовал ContentUnavailableView).
                 EmptyStateView(error: error, lastKnown: monitor.lastKnownStatus) {
                     Task { await monitor.refresh(rediscover: true) }
                 }
-                .frame(minHeight: 340)
-                .padding(.bottom, 12)
+                .padding(.top, 4)
+                .padding(.bottom, 14)
 
             case .idle, .loading:
                 loadingBody

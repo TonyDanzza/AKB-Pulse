@@ -13,7 +13,6 @@ struct SettingsView: View {
     @AppStorage(Prefs.Key.repeatEveryTen) private var repeatEveryTen = true
     @AppStorage(Prefs.Key.launchAtLogin) private var launchAtLogin = false
 
-    @State private var toolDirectory = ToolLocator.resolvedDirectory
     @State private var launchError: String?
     @State private var isDiscovering = false
 
@@ -25,11 +24,8 @@ struct SettingsView: View {
             systemSection
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 524)
-        .onAppear {
-            launchAtLogin = LaunchAtLogin.isEnabled
-            toolDirectory = ToolLocator.resolvedDirectory
-        }
+        .frame(width: 460, height: 584)
+        .onAppear { launchAtLogin = LaunchAtLogin.isEnabled }
     }
 
     // MARK: - Телефон
@@ -51,18 +47,20 @@ struct SettingsView: View {
                 }
             }
 
-            HStack(spacing: 8) {
-                Button(L("settings.rediscover", "Обновить список")) {
-                    isDiscovering = true
-                    Task {
-                        await monitor.rediscoverDevices()
-                        isDiscovering = false
+            LabeledContent(L("settings.deviceList", "Список устройств")) {
+                HStack(spacing: 8) {
+                    if isDiscovering {
+                        ProgressView().controlSize(.small)
                     }
-                }
-                .controlSize(.small)
-                .disabled(isDiscovering)
-                if isDiscovering {
-                    ProgressView().controlSize(.small)
+                    Button(L("settings.rediscover", "Обновить список")) {
+                        isDiscovering = true
+                        Task {
+                            await monitor.rediscoverDevices()
+                            isDiscovering = false
+                        }
+                    }
+                    .controlSize(.small)
+                    .disabled(isDiscovering)
                 }
             }
         }
@@ -159,51 +157,12 @@ struct SettingsView: View {
                     .foregroundStyle(.red)
             }
 
-            Button(L("settings.showOnboarding", "Показать инструкцию…")) {
-                OnboardingWindowController.shared.show(monitor: monitor)
-            }
-            .controlSize(.small)
-
-            LabeledContent {
-                Button(L("settings.choosePath", "Указать путь…"), systemImage: SymbolName.folder) {
-                    chooseToolDirectory()
+            LabeledContent(L("settings.guide", "Инструкция по подключению")) {
+                Button(L("settings.showOnboarding", "Показать инструкцию…")) {
+                    OnboardingWindowController.shared.show(monitor: monitor)
                 }
-                .labelStyle(.titleOnly)
                 .controlSize(.small)
-            } label: {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("libimobiledevice")
-                    Text(toolStatusText)
-                        .font(.caption)
-                        .foregroundStyle(toolDirectory == nil ? .red : .secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
             }
-        }
-    }
-
-    private var toolStatusText: String {
-        guard let directory = toolDirectory else {
-            return L("settings.toolMissing", "не найден")
-        }
-        if directory.contains("/Contents/Helpers") {
-            return L("settings.toolBundled", "встроен в приложение")
-        }
-        return String(format: L("settings.toolFound", "найден в %@"), directory)
-    }
-
-    private func chooseToolDirectory() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.prompt = L("settings.choose", "Выбрать")
-        panel.message = L("settings.choosePrompt",
-                          "Укажи папку, где лежат idevice_id и ideviceinfo")
-        if panel.runModal() == .OK, let url = panel.url {
-            ToolLocator.customDirectory = url.path
-            toolDirectory = ToolLocator.resolvedDirectory
-            monitor.settingsChanged()
         }
     }
 }

@@ -1,6 +1,7 @@
 import Foundation
 
-/// Поиск бинарников libimobiledevice: сначала путь из настроек, затем стандартные каталоги.
+/// Поиск бинарников libimobiledevice. Порядок тихий, без настройки в UI:
+/// бандл приложения → /opt/homebrew/bin → /usr/local/bin → /opt/local/bin → /usr/bin.
 enum ToolLocator {
 
     static let defaultSearchPaths = [
@@ -9,12 +10,6 @@ enum ToolLocator {
         "/opt/local/bin",
         "/usr/bin"
     ]
-
-    /// Каталог, заданный пользователем в настройках (кнопка «Указать путь…»).
-    static var customDirectory: String? {
-        get { UserDefaults.standard.string(forKey: Prefs.Key.toolDirectory) }
-        set { UserDefaults.standard.set(newValue, forKey: Prefs.Key.toolDirectory) }
-    }
 
     /// Утилиты, встроенные в бандл (`AKB.app/Contents/Helpers`) — фаза 2 плана.
     /// Приоритетнее всего: с ними приложению не нужен Homebrew.
@@ -28,12 +23,10 @@ enum ToolLocator {
         return url.path
     }
 
-    /// Порядок поиска: бандл → путь из настроек → стандартные каталоги.
+    /// Порядок поиска: бандл, затем стандартные каталоги.
     static var searchPaths: [String] {
-        var paths: [String] = []
-        if let bundled = bundledDirectory { paths.append(bundled) }
-        if let custom = customDirectory, !custom.isEmpty { paths.append(custom) }
-        return paths + defaultSearchPaths
+        guard let bundled = bundledDirectory else { return defaultSearchPaths }
+        return [bundled] + defaultSearchPaths
     }
 
     /// Утилиты взяты из бандла, а не из системы.

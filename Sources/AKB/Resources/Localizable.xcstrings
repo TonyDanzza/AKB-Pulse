@@ -155,19 +155,87 @@
         }
       }
     },
-    "error.noDevice.description": {
+    "error.noDevice.step1": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "1. Connect the iPhone with a cable.\n2. Finder → iPhone → General → turn on “Show this iPhone when on Wi‑Fi”.\n3. Tap “Trust” on the iPhone.\n4. Unplug the cable — the Mac and the iPhone must share one Wi‑Fi network.\n5. If a VPN is on, on the Mac or on the iPhone, allow local network access in it or turn it off while searching."
+            "value": "Connect the iPhone with a cable."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "1. Подключи iPhone кабелем.\n2. Finder → iPhone → Основные → включи «Показывать этот iPhone, если он подключён к Wi‑Fi».\n3. Нажми «Доверять» на телефоне.\n4. Отключи кабель — Mac и iPhone должны быть в одной сети Wi‑Fi.\n5. Если на Mac или iPhone включён VPN — разреши в нём доступ к локальной сети или выключи его на время поиска."
+            "value": "Подключи iPhone кабелем."
+          }
+        }
+      }
+    },
+    "error.noDevice.step2": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finder → iPhone → General → turn on “Show this iPhone when on Wi‑Fi”."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finder → iPhone → Основные → включи «Показывать этот iPhone, если он подключён к Wi‑Fi»."
+          }
+        }
+      }
+    },
+    "error.noDevice.step3": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap “Trust” on the iPhone."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нажми «Доверять» на телефоне."
+          }
+        }
+      }
+    },
+    "error.noDevice.step4": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unplug the cable — the Mac and the iPhone must share one Wi‑Fi network."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отключи кабель — Mac и iPhone должны быть в одной сети Wi‑Fi."
+          }
+        }
+      }
+    },
+    "error.noDevice.step5": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If a VPN is on, on the Mac or on the iPhone, allow local network access in it or turn it off while searching."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Если на Mac или iPhone включён VPN — разреши в нём доступ к локальной сети или выключи его на время поиска."
           }
         }
       }
@@ -665,57 +733,6 @@
         }
       }
     },
-    "settings.choose": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Выбрать"
-          }
-        }
-      }
-    },
-    "settings.choosePath": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose path…"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Указать путь…"
-          }
-        }
-      }
-    },
-    "settings.choosePrompt": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pick the folder that contains idevice_id and ideviceinfo"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Укажи папку, где лежат idevice_id и ideviceinfo"
-          }
-        }
-      }
-    },
     "settings.device": {
       "extractionState": "manual",
       "localizations": {
@@ -729,6 +746,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "Устройство"
+          }
+        }
+      }
+    },
+    "settings.deviceList": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Device list"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Список устройств"
+          }
+        }
+      }
+    },
+    "settings.guide": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setup guide"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Инструкция по подключению"
           }
         }
       }
@@ -967,57 +1018,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Порог: %d%%"
-          }
-        }
-      }
-    },
-    "settings.toolBundled": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "bundled with the app"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "встроен в приложение"
-          }
-        }
-      }
-    },
-    "settings.toolFound": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "found in %@"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "найден в %@"
-          }
-        }
-      }
-    },
-    "settings.toolMissing": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "not found"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "не найден"
           }
         }
       }
