@@ -11,6 +11,7 @@
 //   akb-direct battery <ip> <udid>   заряд, вывод как у `ideviceinfo -q`
 //   akb-direct mac <udid>            WiFiMACAddress из записи сопряжения
 //   akb-direct addr <udid>           IPv4, если usbmuxd видит телефон по сети
+//   akb-direct watch                 поток событий usbmuxd (план §18.1)
 //
 // Коды возврата: 0 ок, 2 неверные аргументы, 3 рукопожатие не удалось
 // (телефон спит/недоступен), 4 GetValue не удался, 5 не найдено.
@@ -21,6 +22,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <unistd.h>
 #include <libimobiledevice/libimobiledevice.h>
 #include <libimobiledevice/lockdown.h>
 #include <usbmuxd.h>
@@ -192,19 +194,60 @@ static int mode_addr(const char *udid) {
     return rc;
 }
 
+
+// --- watch -------------------------------------------------------------------
+
+// Телефон появляется в usbmuxd, когда его подключили кабелем или он проснулся
+// в сети. Это самый ранний сигнал «что-то изменилось» — приложение по нему
+// опрашивает заряд сразу, не дожидаясь таймера (план §18.1).
+static void watch_cb(const usbmuxd_event_t *event, void *user_data) {
+    (void)user_data;
+    switch (event->event) {
+        case UE_DEVICE_ADD:
+            printf("ADD %s %s\n", event->device.udid,
+                   event->device.conn_type == CONNECTION_TYPE_NETWORK ? "network" : "usb");
+            break;
+        case UE_DEVICE_REMOVE:
+            printf("REMOVE %s\n", event->device.udid);
+            break;
+        default:
+            return;
+    }
+    fflush(stdout);
+}
+
+static int mode_watch(void) {
+    usbmuxd_subscription_context_t context = NULL;
+    if (usbmuxd_events_subscribe(&context, watch_cb, NULL) != 0) {
+        fprintf(stderr, "events subscribe failed\n");
+        return 5;
+    }
+    // События приходят в своём потоке внутри libusbmuxd, а этот поток просто
+    // ждёт закрытия stdin: когда приложение умрёт, труба закроется и помощник
+    // уйдёт вместе с ним, не оставшись висеть сиротой.
+    char buffer[64];
+    ssize_t n;
+    while ((n = read(STDIN_FILENO, buffer, sizeof(buffer))) > 0) { }
+    usbmuxd_events_unsubscribe(context);
+    return 0;
+}
+
 // -----------------------------------------------------------------------------
 
 static int usage(void) {
     fprintf(stderr,
             "usage: akb-direct battery <ip> <udid> [domain]\n"
             "       akb-direct mac <udid>\n"
-            "       akb-direct addr <udid>\n");
+            "       akb-direct addr <udid>\n"
+            "       akb-direct watch\n");
     return 2;
 }
 
 int main(int argc, char **argv) {
-    if (argc < 3) return usage();
+    if (argc < 2) return usage();
     const char *mode = argv[1];
+    if (strcmp(mode, "watch") == 0) return mode_watch();
+    if (argc < 3) return usage();
     if (strcmp(mode, "battery") == 0) {
         if (argc < 4) return usage();
         return mode_battery(argv[2], argv[3],

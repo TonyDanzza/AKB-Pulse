@@ -53,9 +53,18 @@ final class BatteryMonitor {
     /// Пауза после неудачного опроса: телефон отвечает волнами, ждать полный
     /// интервал (до 5 минут) незачем.
     static let fastRetryDelay = 60
+    /// На зарядке состояние меняется быстро (проценты растут, «Заряжается»
+    /// появляется и исчезает), а телефон в это время и так не спит (план §18.2).
+    static let chargingInterval = 15
     private var observers: [NSObjectProtocol] = []
     /// Экран Mac спит или сессия заблокирована — опрос стоит (план §16.6).
     private var isPaused = false
+    /// События usbmuxd → немедленный опрос (план §18.1).
+    private var watcher: DeviceEventWatcher?
+    /// Задержка, с которой сейчас спит таймер: если после опроса правильная
+    /// стала другой (телефон встал на зарядку или перестал отвечать), таймер
+    /// перезапускается сразу, а не через полный интервал.
+    private var scheduledDelay: Int?
 
     /// Сколько живут последние показания. Позже телефон считается недоступным (план §16.1).
     static let defaultStaleLimit: TimeInterval = 12 * 60 * 60
@@ -89,6 +98,9 @@ final class BatteryMonitor {
 
     func start() {
         observeWake()
+        let watcher = DeviceEventWatcher(monitor: self)
+        self.watcher = watcher
+        watcher.start()
         scheduleTimer()
         Task { await refresh(rediscover: true) }
     }
@@ -96,6 +108,7 @@ final class BatteryMonitor {
     func stop() {
         timerTask?.cancel()
         timerTask = nil
+        watcher?.stop()
         for observer in observers {
             NSWorkspace.shared.notificationCenter.removeObserver(observer)
         }
@@ -135,12 +148,14 @@ final class BatteryMonitor {
         isPaused = true
         timerTask?.cancel()
         timerTask = nil
+        watcher?.stop()
         Self.log.info("опрос приостановлен: экран спит или сессия заблокирована")
     }
 
     private func resume() {
         isPaused = false
         Self.log.info("опрос возобновлён")
+        watcher?.start()
         scheduleTimer()
         Task { await refresh(rediscover: true) }
     }
@@ -163,17 +178,43 @@ final class BatteryMonitor {
 
     /// Задержка до следующего опроса с записью в лог, когда идёт быстрый повтор.
     private func currentPollDelay() -> Int {
-        let seconds = Self.nextPollDelay(interval: Prefs.pollInterval, lastFailed: lastPollFailed)
-        if lastPollFailed {
+        let onPower = isOnPower
+        let seconds = pollDelay
+        scheduledDelay = seconds
+        if onPower {
+            Self.log.info("телефон на питании: следующий опрос через \(seconds, privacy: .public) с")
+        } else if lastPollFailed {
             Self.log.info("повтор через \(seconds, privacy: .public) с после неудачи")
         }
         return seconds
     }
 
-    /// Чистое правило выбора паузы (план §17): обычный интервал после успеха,
-    /// не больше минуты — после неудачной попытки связи.
-    static func nextPollDelay(interval: Int, lastFailed: Bool) -> Int {
+    /// Правильная задержка по текущему состоянию.
+    private var pollDelay: Int {
+        Self.nextPollDelay(interval: Prefs.pollInterval,
+                           lastFailed: lastPollFailed,
+                           isOnPower: isOnPower)
+    }
+
+    /// После опроса состояние могло измениться (зарядку подключили или сняли) —
+    /// тогда ждать заведённую раньше паузу незачем.
+    private func rescheduleIfNeeded() {
+        guard timerTask != nil, let scheduled = scheduledDelay, scheduled != pollDelay else { return }
+        scheduleTimer()
+    }
+
+    /// Телефон на зарядке по последнему успешному ответу (план §18.2).
+    private var isOnPower: Bool {
+        guard let status = lastKnownStatus else { return false }
+        return status.externalConnected || status.isCharging
+    }
+
+    /// Чистое правило выбора паузы: обычный интервал после успеха, не больше
+    /// минуты после неудачной попытки связи (план §17) и 15 с, пока телефон
+    /// на питании (план §18.2).
+    static func nextPollDelay(interval: Int, lastFailed: Bool, isOnPower: Bool = false) -> Int {
         let interval = max(10, interval)
+        if isOnPower { return min(chargingInterval, interval) }
         return lastFailed ? min(fastRetryDelay, interval) : interval
     }
 
@@ -198,6 +239,7 @@ final class BatteryMonitor {
         guard !isRefreshing else { return }
         isRefreshing = true
         defer { isRefreshing = false }
+        defer { rescheduleIfNeeded() }
 
         if case .idle = phase { phase = .loading }
 

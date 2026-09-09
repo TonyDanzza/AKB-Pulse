@@ -143,6 +143,7 @@ H=/Applications/AKB.app/Contents/Helpers/akb-direct
 "$H" mac <UDID>                    # 34:10:be:d8:21:09 — MAC из записи сопряжения
 "$H" addr <UDID>                   # IP, если usbmuxd сейчас видит телефон
 "$H" battery 192.168.1.11 <UDID>   # заряд напрямую по IP
+"$H" watch                         # поток событий usbmuxd: ADD/REMOVE
 ```
 
 Код 3 значит «рукопожатие не удалось»: телефон в этот момент спит.
@@ -167,6 +168,8 @@ H=/Applications/AKB.app/Contents/Helpers/akb-direct
 только пользуется теми моментами, когда он проснулся сам, а запросы к спящему
 телефону до него просто не доходят. Пока экран Mac спит или сессия
 заблокирована, опрос полностью остановлен и возобновляется при пробуждении.
+Пока телефон на зарядке, АКБ спрашивает его каждые 15 секунд: он в это время
+и так не спит, а состояние меняется быстро.
 
 ## Передать другому
 
@@ -206,8 +209,9 @@ Sources/AKB/
   Views/                          MenuBarLabel, StatusPopoverView,
                                   SettingsView, EmptyStateView,
                                   OnboardingView, Hairline
-Helpers/akb-direct/               помощник на C: заряд по IP, MAC, адрес
-Tests/AKBTests/                   47 тестов, Swift Testing
+  Services/DeviceEventWatcher.swift события usbmuxd → немедленный опрос
+Helpers/akb-direct/               помощник на C: заряд по IP, MAC, адрес, события
+Tests/AKBTests/                   53 теста, Swift Testing
 ```
 
 ```
