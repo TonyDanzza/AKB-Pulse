@@ -67,4 +67,22 @@ struct ARPTableTests {
         #expect(ARPTable.isIPv4("192.168.1") == false)
         #expect(ARPTable.isIPv4("192.168.1.300") == false)
     }
+
+    @Test("Маршрутная таблица системы читается без внешнего процесса")
+    func systemTable() {
+        // Содержимое зависит от сети, поэтому проверяем форму: ключи — MAC,
+        // значения — IPv4. Пустой ответ допустим (машина может быть без сети).
+        let table = ARPTable.systemTable()
+        for (mac, ip) in table {
+            #expect(ARPTable.normalize(mac) == mac)
+            #expect(ARPTable.isIPv4(ip))
+        }
+    }
+
+    @Test("Мусорный дамп маршрутов не роняет разбор")
+    func garbageRouteDump() {
+        #expect(ARPTable.parseRouteDump([]).isEmpty)
+        #expect(ARPTable.parseRouteDump([UInt8](repeating: 0, count: 64)).isEmpty)
+        #expect(ARPTable.parseRouteDump([1, 2, 3]).isEmpty)
+    }
 }

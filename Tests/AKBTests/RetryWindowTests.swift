@@ -82,4 +82,48 @@ struct RetryWindowTests {
         #expect(attempts == 1)
         #expect(clock.slept.isEmpty)
     }
+
+    @Test("Предпроверка порта: пока порт закрыт, полное чтение не запускается")
+    func precheckSkipsBody() async {
+        let clock = FakeClock()
+        let window = RetryWindow(window: 40, interval: 3, probeInterval: 2)
+        var probes = 0
+        var attempts = 0
+        let value = try? await window.run(now: clock.now, sleep: clock.sleep, precheck: {
+            probes += 1
+            return probes >= 4          // волна пришла на четвёртой проверке
+        }) { _ in
+            attempts += 1
+            return 74
+        }
+        #expect(value == 74)
+        #expect(attempts == 1)
+        #expect(probes == 4)
+        // Три сна по 2 с — шаг предпроверки, а не шаг попытки.
+        #expect(clock.slept == [2, 2, 2])
+    }
+
+    @Test("Порт закрыт всё окно: 21 проверка по 2 с и ни одной попытки")
+    func precheckExhausts() async {
+        let clock = FakeClock()
+        let window = RetryWindow(window: 40, interval: 3, probeInterval: 2)
+        var probes = 0
+        var attempts = 0
+        do {
+            _ = try await window.run(now: clock.now, sleep: clock.sleep, precheck: {
+                probes += 1
+                return false
+            }) { _ in
+                attempts += 1
+                throw ProviderError.deviceUnreachable("UDID")
+            }
+            Issue.record("окно должно было закончиться ошибкой")
+        } catch {
+            #expect(error as? ProviderError == .timeout)
+        }
+        #expect(attempts == 0)
+        // Проверки на 0, 2, … 40 с — вдвое чаще, чем были бы попытки с шагом 3 с.
+        #expect(probes == 21)
+        #expect(clock.now().timeIntervalSince1970 == 40)
+    }
 }

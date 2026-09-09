@@ -1,2 +1,3 @@
 "CFBundleDisplayName" = "АКБ";
 "CFBundleName" = "АКБ";
+"NSLocalNetworkUsageDescription" = "Чтобы узнать заряд iPhone, приложение обращается к нему по домашней сети.";

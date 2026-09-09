@@ -19,8 +19,8 @@ settings:
     DEVELOPMENT_TEAM: ""
     ENABLE_HARDENED_RUNTIME: NO
     ENABLE_USER_SCRIPT_SANDBOXING: NO
-    MARKETING_VERSION: "1.0"
-    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "1.1"
+    CURRENT_PROJECT_VERSION: "2"
     DEAD_CODE_STRIPPING: YES
     GCC_WARN_UNUSED_VARIABLE: YES
     SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
@@ -70,6 +70,9 @@ targets:
         LSUIElement: true
         LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
         NSHumanReadableCopyright: "© 2026 tonydanzza. Все права защищены."
+        # Без разрешения на локальную сеть таблица ARP приходит пустой и адрес
+        # спящего телефона взять неоткуда (план §23.2).
+        NSLocalNetworkUsageDescription: "Чтобы узнать заряд iPhone, приложение обращается к нему по домашней сети."
         CFBundleLocalizations:
           - en
           - ru

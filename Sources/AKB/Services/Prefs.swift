@@ -15,6 +15,15 @@ enum Prefs {
         static let lastKnownIP = "lastKnownIP"
         /// UDID → Wi-Fi MAC из записи сопряжения. По нему IP находится в `arp -an`.
         static let lastKnownMAC = "lastKnownMAC"
+        /// UDID → имя хоста телефона (`iPhone-Toni.local.`): mDNS отвечает на него,
+        /// даже когда телефон спит и пропал из usbmuxd (план §23.2).
+        static let lastKnownHostname = "lastKnownHostname"
+        /// UDID → когда по этому IP последний раз удалось прочитать заряд.
+        /// Адрес забывается, только если он молчит дольше шести часов (план §23.1).
+        static let ipConfirmedAt = "ipConfirmedAt"
+        /// `arp` и маршрутная таблица пусты: похоже, не выдано разрешение
+        /// «Локальная сеть». Подсказка в popover (план §23.2).
+        static let localNetworkBlocked = "localNetworkBlocked"
         /// UDID → имя и модель, чтобы показывать спящий телефон, которого нет в usbmuxd.
         static let deviceNames = "deviceNames"
         static let deviceProductTypes = "deviceProductTypes"
@@ -67,6 +76,28 @@ enum Prefs {
     static var lastKnownMAC: [String: String] {
         get { stringMap(Key.lastKnownMAC) }
         set { setStringMap(newValue, Key.lastKnownMAC) }
+    }
+
+    static var lastKnownHostname: [String: String] {
+        get { stringMap(Key.lastKnownHostname) }
+        set { setStringMap(newValue, Key.lastKnownHostname) }
+    }
+
+    /// Когда адрес телефона последний раз подтвердился настоящим ответом.
+    static var ipConfirmedAt: [String: Double] {
+        get { UserDefaults.standard.dictionary(forKey: Key.ipConfirmedAt) as? [String: Double] ?? [:] }
+        set {
+            if newValue.isEmpty {
+                UserDefaults.standard.removeObject(forKey: Key.ipConfirmedAt)
+            } else {
+                UserDefaults.standard.set(newValue, forKey: Key.ipConfirmedAt)
+            }
+        }
+    }
+
+    static var localNetworkBlocked: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.localNetworkBlocked) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.localNetworkBlocked) }
     }
 
     static var deviceNames: [String: String] {

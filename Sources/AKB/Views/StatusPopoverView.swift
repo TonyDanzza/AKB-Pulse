@@ -9,6 +9,9 @@ import SwiftUI
 struct StatusPopoverView: View {
 
     @Bindable var monitor: BatteryMonitor
+    /// Таблица ARP пришла пустой — почти наверняка не выдано разрешение
+    /// «Локальная сеть», и телефон в ней не найти (план §23.2).
+    @AppStorage(Prefs.Key.localNetworkBlocked) private var localNetworkBlocked = false
     /// Открыть настройки. Задаёт `StatusItemController`: `SettingsLink` внутри
     /// `NSHostingController` со сценой `Settings` не связан (план §20.1).
     var onSettings: () -> Void = {}
@@ -49,6 +52,11 @@ struct StatusPopoverView: View {
 
             case .idle, .loading:
                 loadingBody
+                    .padding(.bottom, 12)
+            }
+
+            if localNetworkBlocked {
+                localNetworkHint
                     .padding(.bottom, 12)
             }
 
@@ -179,6 +187,26 @@ struct StatusPopoverView: View {
             .font(.caption)
             .foregroundStyle(.tertiary)
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Подсказка про разрешение «Локальная сеть»: без него таблица ARP пуста,
+    /// и адрес спящего телефона взять неоткуда.
+    private var localNetworkHint: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(L("hint.localNetwork",
+                   "Разреши доступ к локальной сети в Системных настройках → Конфиденциальность"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(L("hint.localNetwork.open", "Открыть настройки")) {
+                guard let url = URL(string:
+                    "x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork")
+                else { return }
+                NSWorkspace.shared.open(url)
+            }
+            .controlSize(.small)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder

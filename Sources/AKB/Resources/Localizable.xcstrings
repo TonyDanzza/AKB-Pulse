@@ -359,6 +359,40 @@
         }
       }
     },
+    "hint.localNetwork": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow local network access in System Settings → Privacy & Security"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разреши доступ к локальной сети в Системных настройках → Конфиденциальность"
+          }
+        }
+      }
+    },
+    "hint.localNetwork.open": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Settings"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть настройки"
+          }
+        }
+      }
+    },
     "interval.1m": {
       "extractionState": "manual",
       "localizations": {

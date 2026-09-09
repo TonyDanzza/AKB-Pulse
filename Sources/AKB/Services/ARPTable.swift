@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 /// Разбор вывода `/usr/sbin/arp -an` — так мы находим IP телефона по MAC,
@@ -55,5 +56,99 @@ enum ARPTable {
         return parts.allSatisfy { part in
             !part.isEmpty && part.count <= 3 && UInt8(part) != nil
         }
+    }
+
+    // MARK: - Таблица без внешнего процесса (план §23.2)
+
+    /// Та же таблица, что печатает `arp -an`, но прочитанная прямо в приложении
+    /// через `sysctl(CTL_NET, PF_ROUTE, …)`. Нужна потому, что запущенный из
+    /// приложения `/usr/sbin/arp` возвращает пустой вывод: доступ к локальной сети
+    /// выдаётся конкретной программе, и дочерний процесс под него не подпадает.
+    ///
+    /// Спрашиваем тремя способами: `NET_RT_FLAGS` с `RTF_LLINFO` по IPv4, то же
+    /// без указания семейства (на macOS 26 первый вариант отдаёт 0 байт) и, если
+    /// и это пусто, полный `NET_RT_DUMP`.
+    static func systemTable() -> [String: String] {
+        let queries: [(af: Int32, kind: Int32, flags: Int32)] = [
+            (AF_INET, NET_RT_FLAGS, Int32(RTF_LLINFO)),
+            (AF_UNSPEC, NET_RT_FLAGS, Int32(RTF_LLINFO)),
+            (AF_INET, NET_RT_DUMP, 0)
+        ]
+        for query in queries {
+            guard let bytes = routeDump(af: query.af, kind: query.kind, flags: query.flags),
+                  !bytes.isEmpty else { continue }
+            let table = parseRouteDump(bytes)
+            if !table.isEmpty { return table }
+        }
+        return [:]
+    }
+
+    /// Сырой ответ маршрутного sysctl.
+    static func routeDump(af: Int32, kind: Int32, flags: Int32) -> [UInt8]? {
+        var mib: [Int32] = [CTL_NET, PF_ROUTE, 0, af, kind, flags]
+        var size = 0
+        guard sysctl(&mib, u_int(mib.count), nil, &size, nil, 0) == 0, size > 0 else { return nil }
+        var buffer = [UInt8](repeating: 0, count: size)
+        let status = buffer.withUnsafeMutableBytes { raw in
+            sysctl(&mib, u_int(mib.count), raw.baseAddress, &size, nil, 0)
+        }
+        guard status == 0 else { return nil }
+        return Array(buffer.prefix(size))
+    }
+
+    /// Разбор потока `rt_msghdr`. За заголовком идут адреса, какие именно —
+    /// сказано битами `rtm_addrs`: нулевой бит это узел (IPv4), первый — шлюз,
+    /// и у записей канального уровня в нём лежит MAC (`sockaddr_dl`).
+    /// Записи без MAC — то же, что `(incomplete)` у `arp`, — пропускаются.
+    static func parseRouteDump(_ bytes: [UInt8]) -> [String: String] {
+        var table: [String: String] = [:]
+        let headerSize = MemoryLayout<rt_msghdr>.size
+        var offset = 0
+
+        bytes.withUnsafeBytes { raw in
+            while offset + headerSize <= raw.count {
+                let header = raw.loadUnaligned(fromByteOffset: offset, as: rt_msghdr.self)
+                let length = Int(header.rtm_msglen)
+                guard length >= headerSize, offset + length <= raw.count else { break }
+
+                var cursor = offset + headerSize
+                var ip: String?
+                var mac: String?
+                for bit in 0..<8 where header.rtm_addrs & (1 << bit) != 0 {
+                    guard cursor + MemoryLayout<sockaddr>.size <= offset + length else { break }
+                    let generic = raw.loadUnaligned(fromByteOffset: cursor, as: sockaddr.self)
+                    if bit == 0, generic.sa_family == sa_family_t(AF_INET) {
+                        let inet = raw.loadUnaligned(fromByteOffset: cursor, as: sockaddr_in.self)
+                        ip = ipv4String(inet.sin_addr)
+                    }
+                    if bit == 1, generic.sa_family == sa_family_t(AF_LINK) {
+                        let link = raw.loadUnaligned(fromByteOffset: cursor, as: sockaddr_dl.self)
+                        // sdl_data начинается на восьмом байте: сперва имя интерфейса, затем адрес.
+                        let macOffset = cursor + 8 + Int(link.sdl_nlen)
+                        if link.sdl_alen == 6, macOffset + 6 <= raw.count {
+                            mac = (0..<6)
+                                .map { String(format: "%02x", raw[macOffset + $0]) }
+                                .joined(separator: ":")
+                        }
+                    }
+                    cursor += roundup(Int(generic.sa_len))
+                }
+                if let ip, let mac, isIPv4(ip), table[mac] == nil { table[mac] = ip }
+                offset += length
+            }
+        }
+        return table
+    }
+
+    /// Адреса в маршрутном сообщении выровнены по 4 байта.
+    private static func roundup(_ length: Int) -> Int {
+        let step = MemoryLayout<UInt32>.size
+        guard length > 0 else { return step }
+        return 1 + ((length - 1) | (step - 1))
+    }
+
+    private static func ipv4String(_ address: in_addr) -> String {
+        let value = address.s_addr.bigEndian
+        return "\((value >> 24) & 0xff).\((value >> 16) & 0xff).\((value >> 8) & 0xff).\(value & 0xff)"
     }
 }

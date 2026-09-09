@@ -31,5 +31,7 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 tonydanzza. Все права защищены.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Чтобы узнать заряд iPhone, приложение обращается к нему по домашней сети.</string>
 </dict>
 </plist>

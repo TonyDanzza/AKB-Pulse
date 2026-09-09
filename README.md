@@ -13,7 +13,9 @@ libimobiledevice, что использует Finder. Bluetooth заряд iPhon
 порт `lockdownd` на его адресе в локальной сети открыт волнами — телефон
 регулярно просыпается для push. АКБ помнит адрес телефона и в такие
 моменты читает заряд напрямую по IP (помощник `akb-direct` внутри
-приложения). Если телефон не отвечает дольше 15 минут, число остаётся на
+приложения). Адрес не забывается после неудачной минуты, а если телефон
+всё-таки переехал, АКБ находит его заново тремя путями: по имени хоста
+через mDNS, по MAC в таблице соседей и через usbmuxd. Если телефон не отвечает дольше 15 минут, число остаётся на
 экране, но приглушается, а в окне пишется «Нет связи ▏данные 14:32».
 
 ![Строка меню](screenshots/menubar-real.png)
@@ -47,12 +49,14 @@ ideviceinfo -n -u <UDID> -q com.apple.mobile.battery
 
 Если телефон найден, но заряд не обновляется, пока он спит, загляни в
 Системные настройки → «Конфиденциальность и безопасность» → «Локальная
-сеть» и разреши АКБ. Без этого разрешения система отдаёт приложению пустую
-таблицу соседей (`arp`), и адрес спящего телефона искать негде.
+сеть» и разреши АКБ. Без этого разрешения система прячет от приложения
+MAC-адреса соседей: `arp -an` приходит пустым, а в маршрутной таблице
+вместо адресов стоит `02:00:00:00:00:00`. Когда так случается, АКБ пишет об
+этом в лог и показывает в окне кнопку, открывающую нужный раздел настроек.
 
 ## Установка
 
-1. Открой `AKB-1.0.dmg`, перетащи `AKB.app` в папку «Программы».
+1. Открой `AKB-1.1.dmg`, перетащи `AKB.app` в папку «Программы».
 2. Запусти. Homebrew и `brew install libimobiledevice` не нужны:
    утилиты и библиотеки лежат внутри приложения.
 3. Разреши уведомления, когда система спросит, — иначе не придёт
@@ -98,8 +102,8 @@ xcodebuild -project AKB.xcodeproj -scheme AKB -configuration Debug \
 Сборка для раздачи:
 
 ```bash
-./scripts/make-dmg.sh       # → dist/AKB-1.0.dmg (готовый образ)
-./scripts/package.sh        # → dist/AKB-1.0.zip (просто архив)
+./scripts/make-dmg.sh       # → dist/AKB-1.1.dmg (готовый образ)
+./scripts/package.sh        # → dist/AKB-1.1.zip (просто архив)
 ```
 
 Оба скрипта собирают Release. Утилиты libimobiledevice встраиваются в
@@ -188,7 +192,7 @@ H=/Applications/AKB.app/Contents/Helpers/akb-direct
 
 ## Передать другому
 
-Собери `./scripts/make-dmg.sh` и отдай `dist/AKB-1.0.dmg`. Ставить ничего
+Собери `./scripts/make-dmg.sh` и отдай `dist/AKB-1.1.dmg`. Ставить ничего
 не нужно: libimobiledevice уже внутри. Получателю остаётся два шага —
 включить для своего телефона галочку Wi-Fi в Finder (окно первого запуска
 показывает, как) и при первом открытии обойти Gatekeeper, как описано выше.
@@ -214,9 +218,12 @@ Sources/AKB/
     IMobileDeviceOutputParser.swift  чистый парсер (покрыт тестами)
     ProcessRunner.swift           Process вне главного потока, таймаут 10 с
     ToolLocator.swift             поиск бинарников
-    DeviceAddressResolver.swift   кэш → usbmuxd → MAC + arp: адрес телефона
-    ARPTable.swift                чистый разбор `arp -an` (покрыт тестами)
-    RetryWindow.swift             окно повторов 40 с шагом 3 с (покрыто тестами)
+    DeviceAddressResolver.swift   кэш → имя (mDNS) → arp → usbmuxd: адрес телефона
+    ARPTable.swift                разбор `arp -an` и та же таблица через sysctl
+    HostnameResolver.swift        getaddrinfo/getnameinfo без внешних процессов
+    BonjourHostname.swift         имя телефона по MAC из `_apple-mobdev2._tcp`
+    PortProbe.swift               стук в порт 62078 на секунду (предпроверка)
+    RetryWindow.swift             окно повторов 40 с с предпроверкой (покрыто тестами)
     BatteryMonitor.swift          @Observable состояние и таймер опроса
     AlertPolicy.swift             когда слать уведомление (покрыто тестами)
     NotificationService.swift     UNUserNotificationCenter
@@ -230,15 +237,15 @@ Sources/AKB/
                                   OnboardingView, Hairline
   Services/DeviceEventWatcher.swift события usbmuxd → немедленный опрос
 Helpers/akb-direct/               помощник на C: заряд по IP, MAC, адрес, события
-Tests/AKBTests/                   57 тестов, Swift Testing
+Tests/AKBTests/                   70 тестов, Swift Testing
 ```
 
 ```
 scripts/
   dev/click-menubar.swift      клик по строке меню для снимков экрана
   bundle-libimobiledevice.sh   встраивает утилиты и dylib в бандл
-  make-dmg.sh                  Release → dist/AKB-1.0.dmg
-  package.sh                   Release → dist/AKB-1.0.zip
+  make-dmg.sh                  Release → dist/AKB-1.1.dmg
+  package.sh                   Release → dist/AKB-1.1.zip
 ```
 
 Сторонних SPM-зависимостей нет — только системные фреймворки.

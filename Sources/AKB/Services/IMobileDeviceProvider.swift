@@ -136,45 +136,66 @@ struct IMobileDeviceProvider: BatteryProvider {
         return status
     }
 
-    /// Прямое чтение по IP. Адрес ищет `DeviceAddressResolver`; если за всё окно
-    /// телефон так и не ответил, кэш адреса сбрасывается — вдруг он сменил IP.
+    /// Прямое чтение по IP. Адрес ищет `DeviceAddressResolver`.
+    ///
+    /// Промах окна повторов не значит, что адрес неверен: телефон отвечает волнами,
+    /// и в неудачную минуту он просто спал (план §23.1). Поэтому кэш не стирается —
+    /// вместо этого мы один раз пробуем уточнить адрес другими путями, и если он
+    /// и правда сменился, тут же ходим по новому.
     private func batteryDirect(_ device: PhoneDevice, started: Date) async throws -> BatteryStatus {
         guard let resolved = await resolver.resolve(udid: device.udid) else {
             throw ProviderError.deviceUnreachable(device.udid)
         }
-        let akbDirect = try tool("akb-direct")
         do {
-            let status = try await retry.run { attempt in
-                let result = try await ProcessRunner.run(
-                    akbDirect,
-                    arguments: ["battery", resolved.ip, device.udid],
-                    timeout: min(timeout, retry.interval + 5)
-                )
-                guard result.status == 0 else {
-                    throw ProviderError.deviceUnreachable(device.udid)
-                }
-                guard var status = IMobileDeviceOutputParser.battery(result.stdout) else {
-                    throw ProviderError.parseFailure
-                }
-                status.source = .direct
-                AKBLog.info(.provider, """
-                    заряд \(status.percent)%, \(Self.flags(status)) путём direct \
-                    (\(resolved.ip), адрес: \(resolved.source.rawValue), \
-                    попытка \(attempt + 1)) \
-                    за \(String(format: "%.1f", Date().timeIntervalSince(started))) с
-                    """)
-                return status
-            }
-            return status
+            return try await direct(device, ip: resolved.ip, address: resolved.source.rawValue,
+                                    window: retry, started: started)
         } catch {
-            await resolver.invalidate(udid: device.udid)
             AKBLog.info(.provider, """
                 direct не ответил за \(String(format: "%.0f", Date().timeIntervalSince(started))) с \
-                (\(resolved.ip)), адрес забыт
+                (\(resolved.ip)), уточняю адрес
                 """)
+            if let again = await resolver.discover(udid: device.udid), again.ip != resolved.ip,
+               let status = try? await direct(device, ip: again.ip, address: again.source.rawValue,
+                                              window: RetryWindow(window: 20, interval: retry.interval),
+                                              started: started) {
+                return status
+            }
+            await resolver.noteFailure(udid: device.udid)
             if let providerError = error as? ProviderError { throw providerError }
             throw ProviderError.deviceUnreachable(device.udid)
         }
+    }
+
+    /// Окно повторов по конкретному адресу: сначала дешёвый стук в порт lockdownd,
+    /// и только на открытый порт — запуск помощника (план §23.1).
+    private func direct(_ device: PhoneDevice,
+                        ip: String,
+                        address: String,
+                        window: RetryWindow,
+                        started: Date) async throws -> BatteryStatus {
+        let akbDirect = try tool("akb-direct")
+        let status = try await window.run(precheck: { await PortProbe.isOpen(host: ip) }) { attempt in
+            let result = try await ProcessRunner.run(
+                akbDirect,
+                arguments: ["battery", ip, device.udid],
+                timeout: min(timeout, window.interval + 5)
+            )
+            guard result.status == 0 else {
+                throw ProviderError.deviceUnreachable(device.udid)
+            }
+            guard var status = IMobileDeviceOutputParser.battery(result.stdout) else {
+                throw ProviderError.parseFailure
+            }
+            status.source = .direct
+            AKBLog.info(.provider, """
+                заряд \(status.percent)%, \(Self.flags(status)) путём direct \
+                (\(ip), адрес: \(address), попытка \(attempt + 1)) \
+                за \(String(format: "%.1f", Date().timeIntervalSince(started))) с
+                """)
+            return status
+        }
+        await resolver.confirm(udid: device.udid, ip: ip)
+        return status
     }
 }
 

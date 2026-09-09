@@ -1,2 +1,3 @@
 "CFBundleDisplayName" = "AKB";
 "CFBundleName" = "AKB";
+"NSLocalNetworkUsageDescription" = "AKB talks to your iPhone over the home network to read its battery level.";
