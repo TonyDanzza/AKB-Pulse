@@ -66,20 +66,30 @@ for tool in idevice_id ideviceinfo; do
 done
 
 # --- 3. Переписываем пути -----------------------------------------------------
+# install_name_tool всегда ругается, что портит подпись Homebrew. Мы её и так
+# переписываем шагом ниже, поэтому именно это предупреждение глушим, остальные — нет.
+retool() {
+    local out
+    out="$(install_name_tool "$@" 2>&1 || true)"
+    out="$(printf '%s\n' "$out" | grep -v 'invalidate the code signature' || true)"
+    [ -n "$out" ] && printf '%s\n' "$out"
+    return 0
+}
+
 for tool in idevice_id ideviceinfo; do
     otool -L "$HELPERS/$tool" | tail -n +2 | awk '{print $1}' | while read -r dep; do
         is_system "$dep" && continue
-        install_name_tool -change "$dep" \
+        retool -change "$dep" \
             "@executable_path/../Frameworks/$(basename "$dep")" "$HELPERS/$tool"
     done
 done
 
 for lib in "$FRAMEWORKS"/*.dylib; do
     [ -e "$lib" ] || continue
-    install_name_tool -id "@loader_path/$(basename "$lib")" "$lib"
+    retool -id "@loader_path/$(basename "$lib")" "$lib"
     otool -L "$lib" | tail -n +2 | awk '{print $1}' | while read -r dep; do
         is_system "$dep" && continue
-        install_name_tool -change "$dep" "@loader_path/$(basename "$dep")" "$lib"
+        retool -change "$dep" "@loader_path/$(basename "$dep")" "$lib"
     done
 done
 
