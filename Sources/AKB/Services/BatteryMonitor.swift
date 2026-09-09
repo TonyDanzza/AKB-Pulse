@@ -48,6 +48,11 @@ final class BatteryMonitor {
     /// не должна стирать показания — уходим в ошибку только после трёх подряд.
     private var consecutiveFailures = 0
     static let failuresBeforeError = 3
+    /// Последний опрос не попал в окно телефона — следующий делаем быстрее (план §17).
+    private var lastPollFailed = false
+    /// Пауза после неудачного опроса: телефон отвечает волнами, ждать полный
+    /// интервал (до 5 минут) незачем.
+    static let fastRetryDelay = 60
     private var observers: [NSObjectProtocol] = []
     /// Экран Mac спит или сессия заблокирована — опрос стоит (план §16.6).
     private var isPaused = false
@@ -141,17 +146,35 @@ final class BatteryMonitor {
     }
 
     /// Перезапускает таймер опроса (вызывается при смене интервала в настройках).
+    /// Задержка считается на каждой итерации: после неудачи она короче (план §17),
+    /// а интервал из настроек подхватывается без пересоздания таймера.
     func scheduleTimer() {
         timerTask?.cancel()
         guard !isPaused else { return }
-        let seconds = max(10, Prefs.pollInterval)
         timerTask = Task { [weak self] in
             while !Task.isCancelled {
+                guard let seconds = self?.currentPollDelay() else { return }
                 try? await Task.sleep(for: .seconds(seconds))
                 guard !Task.isCancelled else { return }
                 await self?.refresh(rediscover: false)
             }
         }
+    }
+
+    /// Задержка до следующего опроса с записью в лог, когда идёт быстрый повтор.
+    private func currentPollDelay() -> Int {
+        let seconds = Self.nextPollDelay(interval: Prefs.pollInterval, lastFailed: lastPollFailed)
+        if lastPollFailed {
+            Self.log.info("повтор через \(seconds, privacy: .public) с после неудачи")
+        }
+        return seconds
+    }
+
+    /// Чистое правило выбора паузы (план §17): обычный интервал после успеха,
+    /// не больше минуты — после неудачной попытки связи.
+    static func nextPollDelay(interval: Int, lastFailed: Bool) -> Int {
+        let interval = max(10, interval)
+        return lastFailed ? min(fastRetryDelay, interval) : interval
     }
 
     /// Применяет изменения настроек уведомлений/порога.
@@ -193,6 +216,7 @@ final class BatteryMonitor {
             let status = try await provider.battery(for: device)
             lastKnownStatus = status
             consecutiveFailures = 0
+            lastPollFailed = false
             phase = .ready(status)
             evaluateAlert(status, device: device)
         } catch let error as ProviderError {
@@ -223,6 +247,12 @@ final class BatteryMonitor {
     /// Ошибка опроса. Пока показания свежие, короткие обрывы связи не стирают экран.
     private func fail(with error: ProviderError) {
         consecutiveFailures += 1
+        // Быстрый повтор помогает только при обрыве связи; сломанный инструмент
+        // или нечитаемый вывод от этого не починятся (план §17).
+        switch error {
+        case .noDevice, .deviceUnreachable, .timeout: lastPollFailed = true
+        case .toolNotFound, .parseFailure: lastPollFailed = false
+        }
         phase = Self.nextPhase(current: phase,
                                error: error,
                                lastKnown: lastKnownStatus,
