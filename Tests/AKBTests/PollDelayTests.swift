@@ -31,6 +31,16 @@ struct PollDelayTests {
         #expect(BatteryMonitor.nextPollDelay(interval: 300, lastFailed: true, isOnPower: true) == 5)
     }
 
+    @Test("Телефон не спит — каждые 5 с")
+    func awake() {
+        #expect(BatteryMonitor.nextPollDelay(interval: 300, lastFailed: false, isAwake: true) == 5)
+    }
+
+    @Test("Телефон не спит — 5 с и при коротком интервале")
+    func awakeShortInterval() {
+        #expect(BatteryMonitor.nextPollDelay(interval: 30, lastFailed: false, isAwake: true) == 5)
+    }
+
     @Test("Не на питании — обычный интервал")
     func offPower() {
         #expect(BatteryMonitor.nextPollDelay(interval: 300, lastFailed: false, isOnPower: false) == 300)

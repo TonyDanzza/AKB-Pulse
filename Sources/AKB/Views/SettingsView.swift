@@ -84,12 +84,18 @@ struct SettingsView: View {
     @ViewBuilder
     private var pollSection: some View {
         Section(L("settings.poll", "Опрос")) {
-            Picker(L("settings.interval", "Интервал"), selection: $pollInterval) {
+            Picker(L("settings.interval", "Интервал опроса спящего iPhone"), selection: $pollInterval) {
                 ForEach(Prefs.pollIntervals, id: \.self) { seconds in
                     Text(Self.intervalTitle(seconds)).tag(seconds)
                 }
             }
             .onChange(of: pollInterval) { monitor.settingsChanged() }
+
+            Text(L("settings.interval.hint",
+                   "Пока iPhone не спит или на зарядке, опрос идёт каждые 5 с"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             Toggle(L("settings.showPercent", "Показывать проценты в строке меню"), isOn: $showPercent)
         }

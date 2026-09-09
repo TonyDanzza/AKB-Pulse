@@ -128,9 +128,11 @@ struct IMobileDeviceProvider: BatteryProvider {
 
         let result = try await ProcessRunner.run(ideviceinfo, arguments: args, timeout: timeout)
         guard result.status == 0 else { throw ProviderError.deviceUnreachable(device.udid) }
-        guard let status = IMobileDeviceOutputParser.battery(result.stdout) else {
+        guard var status = IMobileDeviceOutputParser.battery(result.stdout) else {
             throw ProviderError.parseFailure
         }
+        // Через usbmuxd отвечает только бодрствующий телефон (план §21).
+        status.source = .usbmuxd
         return status
     }
 
@@ -151,9 +153,10 @@ struct IMobileDeviceProvider: BatteryProvider {
                 guard result.status == 0 else {
                     throw ProviderError.deviceUnreachable(device.udid)
                 }
-                guard let status = IMobileDeviceOutputParser.battery(result.stdout) else {
+                guard var status = IMobileDeviceOutputParser.battery(result.stdout) else {
                     throw ProviderError.parseFailure
                 }
+                status.source = .direct
                 AKBLog.info(.provider, """
                     заряд \(status.percent)%, \(Self.flags(status)) путём direct \
                     (\(resolved.ip), адрес: \(resolved.source.rawValue), \
@@ -216,6 +219,7 @@ struct FakeProvider: BatteryProvider {
                              isCharging: charging,
                              externalConnected: charging,
                              fullyCharged: percent >= 100,
-                             updatedAt: Date())
+                             updatedAt: Date(),
+                             source: .usbmuxd)
     }
 }

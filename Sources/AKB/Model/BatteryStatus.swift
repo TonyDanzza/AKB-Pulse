@@ -11,23 +11,36 @@ struct BatteryStatus: Sendable, Equatable, Hashable {
         case high       // >= 40
     }
 
+    /// Каким путём получен ответ. Косвенный признак сна телефона: через usbmuxd
+    /// отвечает только бодрствующий iPhone, спящий — лишь прямым чтением по IP (план §21).
+    enum Source: String, Sendable, Equatable, Hashable {
+        case usbmuxd
+        case direct
+    }
+
     var percent: Int
     var isCharging: Bool
     var externalConnected: Bool
     var fullyCharged: Bool
     var updatedAt: Date
+    var source: Source
 
     init(percent: Int,
          isCharging: Bool = false,
          externalConnected: Bool = false,
          fullyCharged: Bool = false,
-         updatedAt: Date = Date()) {
+         updatedAt: Date = Date(),
+         source: Source = .usbmuxd) {
         self.percent = min(max(percent, 0), 100)
         self.isCharging = isCharging
         self.externalConnected = externalConnected
         self.fullyCharged = fullyCharged
         self.updatedAt = updatedAt
+        self.source = source
     }
+
+    /// Телефон не спит: он ответил через usbmuxd (план §21).
+    var isAwake: Bool { source == .usbmuxd }
 
     var level: Level {
         switch percent {

@@ -54,6 +54,10 @@ final class BatteryMonitor {
     /// появляется и исчезает), а телефон в это время не спит и отвечает
     /// через usbmuxd за доли секунды — 5 с ничего не стоят (план §20.2).
     static let chargingInterval = 5
+    /// Путь последнего успешного опроса. Ответ через usbmuxd значит, что телефон
+    /// не спит: пока это так, опрашиваем часто (план §21). После неудачи —
+    /// неизвестно, поэтому сбрасывается.
+    private var lastPollSource: BatteryStatus.Source?
     private var observers: [NSObjectProtocol] = []
     /// Экран Mac спит или сессия заблокирована — опрос стоит (план §16.6).
     private var isPaused = false
@@ -182,6 +186,8 @@ final class BatteryMonitor {
         scheduledDelay = seconds
         if onPower {
             AKBLog.info(.monitor, "телефон на питании: следующий опрос через \(seconds) с")
+        } else if isAwake {
+            AKBLog.info(.monitor, "телефон не спит: следующий опрос через \(seconds) с")
         } else if lastPollFailed {
             AKBLog.info(.monitor, "повтор через \(seconds) с после неудачи")
         }
@@ -192,7 +198,8 @@ final class BatteryMonitor {
     private var pollDelay: Int {
         Self.nextPollDelay(interval: Prefs.pollInterval,
                            lastFailed: lastPollFailed,
-                           isOnPower: isOnPower)
+                           isOnPower: isOnPower,
+                           isAwake: isAwake)
     }
 
     /// После опроса состояние могло измениться (зарядку подключили или сняли) —
@@ -208,12 +215,18 @@ final class BatteryMonitor {
         return status.externalConnected || status.isCharging
     }
 
+    /// Телефон не спит: последний успешный опрос прошёл через usbmuxd (план §21).
+    private var isAwake: Bool { lastPollSource == .usbmuxd }
+
     /// Чистое правило выбора паузы: обычный интервал после успеха, не больше
     /// минуты после неудачной попытки связи (план §17) и 5 с, пока телефон
-    /// на питании (план §18.2, §20.2).
-    static func nextPollDelay(interval: Int, lastFailed: Bool, isOnPower: Bool = false) -> Int {
+    /// на питании (план §18.2, §20.2) или просто не спит (план §21).
+    static func nextPollDelay(interval: Int,
+                              lastFailed: Bool,
+                              isOnPower: Bool = false,
+                              isAwake: Bool = false) -> Int {
         let interval = max(10, interval)
-        if isOnPower { return min(chargingInterval, interval) }
+        if isOnPower || isAwake { return min(chargingInterval, interval) }
         return lastFailed ? min(fastRetryDelay, interval) : interval
     }
 
@@ -256,6 +269,7 @@ final class BatteryMonitor {
             }
             let status = try await provider.battery(for: device)
             lastKnownStatus = status
+            lastPollSource = status.source
             consecutiveFailures = 0
             lastPollFailed = false
             phase = .ready(status)
@@ -288,6 +302,8 @@ final class BatteryMonitor {
     /// Ошибка опроса. Пока показания свежие, короткие обрывы связи не стирают экран.
     private func fail(with error: ProviderError) {
         consecutiveFailures += 1
+        // Телефон не ответил — считать его бодрствующим больше нельзя (план §21).
+        lastPollSource = nil
         // Быстрый повтор помогает только при обрыве связи; сломанный инструмент
         // или нечитаемый вывод от этого не починятся (план §17).
         switch error {

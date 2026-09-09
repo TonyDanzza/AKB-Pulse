@@ -807,13 +807,30 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Interval"
+            "value": "Poll interval while iPhone sleeps"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Интервал"
+            "value": "Интервал опроса спящего iPhone"
+          }
+        }
+      }
+    },
+    "settings.interval.hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "While the iPhone is awake or charging, it is polled every 5 seconds"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пока iPhone не спит или на зарядке, опрос идёт каждые 5 с"
           }
         }
       }
