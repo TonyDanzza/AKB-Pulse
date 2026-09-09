@@ -54,6 +54,16 @@ targets:
         CFBundleLocalizations:
           - en
           - ru
+    preBuildScripts: []
+    postCompileScripts: []
+    postBuildScripts:
+      - script: |
+          "$SRCROOT/scripts/bundle-libimobiledevice.sh" \
+              "$BUILT_PRODUCTS_DIR/$WRAPPER_NAME"
+        name: Встроить libimobiledevice
+        basedOnDependencyAnalysis: false
+        outputFiles:
+          - $(BUILT_PRODUCTS_DIR)/$(WRAPPER_NAME)/Contents/Helpers/ideviceinfo
     entitlements:
       path: Sources/AKB/Resources/AKB.entitlements
       properties:

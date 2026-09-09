@@ -25,7 +25,7 @@ struct SettingsView: View {
             systemSection
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 620)
+        .frame(width: 460, height: 660)
         .onAppear {
             launchAtLogin = LaunchAtLogin.isEnabled
             toolDirectory = ToolLocator.resolvedDirectory
@@ -156,6 +156,10 @@ struct SettingsView: View {
                 Text(launchError)
                     .font(.caption)
                     .foregroundStyle(.red)
+            }
+
+            Button(L("settings.showOnboarding", "Показать инструкцию…")) {
+                OnboardingWindowController.shared.show(monitor: monitor)
             }
 
             LabeledContent {

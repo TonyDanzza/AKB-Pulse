@@ -31,16 +31,29 @@ ideviceinfo -n -u <UDID> -q com.apple.mobile.battery
 
 ## Установка
 
-1. Возьми `AKB.app` из архива `dist/AKB-1.0.zip` (собирается
-   `./scripts/package.sh`) и перетащи в папку «Программы».
-2. Первый запуск: подпись ad-hoc, поэтому macOS может сказать, что не
-   может проверить разработчика. Правый клик по `AKB.app` → «Открыть» →
-   «Открыть» ещё раз. Либо: Системные настройки → «Конфиденциальность и
-   безопасность» → внизу «Всё равно открыть».
-3. При первом запуске система спросит разрешение на уведомления —
-   разреши, иначе не придёт предупреждение о низком заряде.
-4. Автозапуск включается в настройках приложения: «Система» →
-   «Запускать при входе».
+1. Открой `AKB-1.0.dmg`, перетащи `AKB.app` в папку «Программы».
+2. Запусти. Homebrew и `brew install libimobiledevice` не нужны:
+   утилиты и библиотеки лежат внутри приложения.
+3. Разреши уведомления, когда система спросит, — иначе не придёт
+   предупреждение о низком заряде.
+4. Автозапуск включается в настройках: «Система» → «Запускать при входе».
+
+### Первый запуск
+
+При первом запуске откроется окно с четырьмя шагами и живым статусом
+внизу: «Ищу iPhone…» превращается в «Найден: iPhone (Тони)», как только
+телефон виден по Wi-Fi. Шаги те же, что и выше: кабель → галочка в Finder
+→ «Доверять» на телефоне → отключить кабель. Окно можно открыть снова:
+настройки → «Система» → «Показать инструкцию…».
+
+![Окно первого запуска](screenshots/onboarding.png)
+
+### Если Mac не даёт открыть
+
+Приложение подписано ad-hoc, без Developer ID, поэтому на чужом Mac
+система скажет, что не может проверить разработчика. Правый клик по
+`AKB.app` → «Открыть» → «Открыть» ещё раз. Либо: Системные настройки →
+«Конфиденциальность и безопасность» → внизу «Всё равно открыть».
 
 ## Сборка из исходников
 
@@ -61,10 +74,22 @@ xcodebuild -project AKB.xcodeproj -scheme AKB -configuration Debug \
     -derivedDataPath build test -destination 'platform=macOS'
 ```
 
-Release-архив для раздачи:
+Сборка для раздачи:
 
 ```bash
-./scripts/package.sh        # → dist/AKB-1.0.zip
+./scripts/make-dmg.sh       # → dist/AKB-1.0.dmg (готовый образ)
+./scripts/package.sh        # → dist/AKB-1.0.zip (просто архив)
+```
+
+Оба скрипта собирают Release. Утилиты libimobiledevice встраиваются в
+бандл автоматически, шагом сборки `scripts/bundle-libimobiledevice.sh`:
+он копирует `idevice_id` и `ideviceinfo` в `Contents/Helpers`, тянет за
+ними все не-системные dylib в `Contents/Frameworks`, переписывает пути
+через `install_name_tool` и заново подписывает. Проверить:
+
+```bash
+otool -L build/Build/Products/Release/AKB.app/Contents/Helpers/* | grep homebrew
+# пусто — значит на Homebrew ничего не завязано
 ```
 
 ### Отладка без телефона
@@ -103,16 +128,19 @@ log stream --predicate 'subsystem == "ru.tonydanzza.akb"' --level info
 
 ## Передать другому
 
-Собери `./scripts/package.sh` и отдай `dist/AKB-1.0.zip`. Получателю
-понадобится:
+Собери `./scripts/make-dmg.sh` и отдай `dist/AKB-1.0.dmg`. Ставить ничего
+не нужно: libimobiledevice уже внутри. Получателю остаётся два шага —
+включить для своего телефона галочку Wi-Fi в Finder (окно первого запуска
+показывает, как) и при первом открытии обойти Gatekeeper, как описано выше.
 
-- поставить утилиты: `brew install libimobiledevice`
-  (в этой версии они не встроены в приложение);
-- включить для своего телефона галочку Wi-Fi в Finder — шаги выше;
-- при первом запуске обойти Gatekeeper так, как описано в «Установке».
+Чтобы приложение открывалось совсем без предупреждений, нужны подпись
+Developer ID и нотаризация у Apple. В этой версии их нет.
 
-Чтобы приложение открывалось без предупреждений на чужом Mac, нужны
-подпись Developer ID и нотаризация у Apple. В этой версии их нет.
+### Лицензии
+
+libimobiledevice, libplist, libusbmuxd и libimobiledevice-glue — LGPL-2.1,
+OpenSSL — Apache-2.0. Библиотеки подключены динамически, их можно заменить
+своей сборкой. Тексты лицензий лежат в `AKB.app/Contents/Resources/Licenses/`.
 
 ## Как устроено
 
@@ -131,10 +159,21 @@ Sources/AKB/
     NotificationService.swift     UNUserNotificationCenter
     LaunchAtLogin.swift           SMAppService
   Views/                          MenuBarLabel, StatusPopoverView,
-                                  SettingsView, EmptyStateView
+                                  SettingsView, EmptyStateView,
+                                  OnboardingView
 Tests/AKBTests/                   24 теста, Swift Testing
 ```
 
-Сторонних зависимостей нет — только системные фреймворки.
-Песочница выключена: без неё `Process` не сможет запустить
-`/opt/homebrew/bin/ideviceinfo`.
+```
+scripts/
+  bundle-libimobiledevice.sh   встраивает утилиты и dylib в бандл
+  make-dmg.sh                  Release → dist/AKB-1.0.dmg
+  package.sh                   Release → dist/AKB-1.0.zip
+```
+
+Сторонних SPM-зависимостей нет — только системные фреймворки.
+Песочница выключена: без неё `Process` не сможет запустить встроенные
+`Contents/Helpers/ideviceinfo`.
+
+`ToolLocator` ищет утилиты в таком порядке: бандл приложения → путь,
+указанный в настройках → `/opt/homebrew/bin` → `/usr/local/bin`.

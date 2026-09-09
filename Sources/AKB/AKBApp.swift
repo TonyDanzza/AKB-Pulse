@@ -11,6 +11,7 @@ struct AKBApp: App {
         Prefs.registerDefaults()
         let monitor = BatteryMonitor()
         _monitor = State(initialValue: monitor)
+        AppDelegate.monitor = monitor
         monitor.start()
     }
 
@@ -33,8 +34,14 @@ struct AKBApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
+    /// Монитор создаётся в `AKBApp.init`, до того как AppKit позовёт делегата.
+    static var monitor: BatteryMonitor?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         NotificationService.shared.bootstrap()
+        if let monitor = Self.monitor {
+            OnboardingWindowController.shared.showIfNeeded(monitor: monitor)
+        }
     }
 }

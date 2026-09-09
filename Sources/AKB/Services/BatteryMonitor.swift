@@ -41,6 +41,10 @@ final class BatteryMonitor {
     private let provider: BatteryProvider
     private var policy: AlertPolicy
     private var timerTask: Task<Void, Never>?
+    /// iPhone по Wi-Fi отвечает не каждый раз (радио засыпает). Одна осечка
+    /// не должна стирать показания — уходим в ошибку только после трёх подряд.
+    private var consecutiveFailures = 0
+    private static let failuresBeforeError = 3
     private var wakeObserver: NSObjectProtocol?
 
     init(provider: BatteryProvider? = nil) {
@@ -130,19 +134,20 @@ final class BatteryMonitor {
                 selectedDevice = Self.pick(from: found, preferredUDID: Prefs.selectedUDID)
             }
             guard let device = selectedDevice else {
-                phase = .failed(.noDevice)
+                fail(with: .noDevice)
                 return
             }
             let status = try await provider.battery(for: device)
             lastKnownStatus = status
+            consecutiveFailures = 0
             phase = .ready(status)
             evaluateAlert(status, device: device)
         } catch let error as ProviderError {
             Self.log.info("опрос не удался: \(String(describing: error), privacy: .public)")
-            phase = .failed(error)
+            fail(with: error)
         } catch {
             Self.log.info("неожиданная ошибка: \(String(describing: error), privacy: .public)")
-            phase = .failed(.parseFailure)
+            fail(with: .parseFailure)
         }
     }
 
@@ -160,6 +165,17 @@ final class BatteryMonitor {
         } catch {
             devices = []
         }
+    }
+
+    /// Ошибка опроса. Пока показания свежие, короткие обрывы связи не стирают экран.
+    private func fail(with error: ProviderError) {
+        consecutiveFailures += 1
+        if case .ready = phase,
+           consecutiveFailures < Self.failuresBeforeError,
+           error != .toolNotFound {
+            return
+        }
+        phase = .failed(error)
     }
 
     /// Выбор устройства: сохранённый UDID → семейство iPhone 17 → первый найденный (план §2).
