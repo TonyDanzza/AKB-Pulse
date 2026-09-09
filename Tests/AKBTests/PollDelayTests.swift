@@ -21,14 +21,14 @@ struct PollDelayTests {
         #expect(BatteryMonitor.nextPollDelay(interval: 30, lastFailed: true) == 30)
     }
 
-    @Test("На питании — каждые 15 с вместо пяти минут")
+    @Test("На питании — каждые 5 с вместо пяти минут")
     func onPower() {
-        #expect(BatteryMonitor.nextPollDelay(interval: 300, lastFailed: false, isOnPower: true) == 15)
+        #expect(BatteryMonitor.nextPollDelay(interval: 300, lastFailed: false, isOnPower: true) == 5)
     }
 
     @Test("На питании неудача ничего не меняет")
     func onPowerAfterFailure() {
-        #expect(BatteryMonitor.nextPollDelay(interval: 300, lastFailed: true, isOnPower: true) == 15)
+        #expect(BatteryMonitor.nextPollDelay(interval: 300, lastFailed: true, isOnPower: true) == 5)
     }
 
     @Test("Не на питании — обычный интервал")

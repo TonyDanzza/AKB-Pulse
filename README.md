@@ -124,6 +124,7 @@ otool -L build/Build/Products/Release/AKB.app/Contents/Helpers/* | grep homebrew
 | `AKB_FAKE_NO_DEVICE=1` | «iPhone не найден» — проверить пустое состояние |
 | `AKB_FAKE_NO_TOOL=1` | «нет libimobiledevice» — проверить второе пустое состояние |
 | `AKB_FAKE_STALE_AFTER=20` | фейковый телефон «засыпает» через 20 с — проверить «Нет связи» |
+| `AKB_FAKE_TOGGLE_CHARGING=8` | зарядка включается и выключается каждые 8 с — видно, что иконка в строке меню обновляется сама |
 
 ```bash
 AKB_FAKE_PERCENT=25 build/Build/Products/Debug/AKB.app/Contents/MacOS/AKB &
@@ -180,8 +181,8 @@ H=/Applications/AKB.app/Contents/Helpers/akb-direct
 только пользуется теми моментами, когда он проснулся сам, а запросы к спящему
 телефону до него просто не доходят. Пока экран Mac спит или сессия
 заблокирована, опрос полностью остановлен и возобновляется при пробуждении.
-Пока телефон на зарядке, АКБ спрашивает его каждые 15 секунд: он в это время
-и так не спит, а состояние меняется быстро.
+Пока телефон на зарядке, АКБ спрашивает его каждые 5 секунд: он в это время
+и так не спит, отвечает за доли секунды, а состояние меняется быстро.
 
 ## Передать другому
 
@@ -203,7 +204,7 @@ OpenSSL — Apache-2.0. Библиотеки подключены динамич
 
 ```
 Sources/AKB/
-  AKBApp.swift                    MenuBarExtra(.window) + сцена Settings
+  AKBApp.swift                    сцена Settings; строка меню — на AppKit
   Model/                          BatteryStatus, PhoneDevice, ProductTypeMap
   Services/
     BatteryProvider.swift         протокол источника данных
@@ -221,7 +222,8 @@ Sources/AKB/
     AKBLog.swift                  единая точка: os.Logger + файловый лог
     FileLog.swift                 ~/Library/Logs/AKB с ротацией (покрыт тестами)
     SupportReport.swift           сборка файла для поддержки (покрыт тестами)
-  Views/                          MenuBarLabel, StatusPopoverView,
+  Views/                          StatusItemController (NSStatusItem + NSPopover),
+                                  MenuBarLabel (рендер иконки), StatusPopoverView,
                                   SettingsView, EmptyStateView,
                                   OnboardingView, Hairline
   Services/DeviceEventWatcher.swift события usbmuxd → немедленный опрос

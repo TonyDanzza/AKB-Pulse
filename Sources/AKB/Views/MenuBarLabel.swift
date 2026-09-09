@@ -3,9 +3,8 @@ import SwiftUI
 
 /// Рендер иконки строки меню.
 ///
-/// SwiftUI отдаёт label `MenuBarExtra` системе как template-изображение и выбрасывает цвет,
-/// поэтому картинка собирается через `ImageRenderer` и подставляется как `Image(nsImage:)`
-/// (план §5.1). Для обычного состояния `isTemplate = true` — тогда macOS сама красит иконку
+/// Картинка собирается через `ImageRenderer` и ставится в `NSStatusItem.button.image`
+/// (план §5.1, §20.1). Для обычного состояния `isTemplate = true` — тогда macOS сама красит иконку
 /// под светлую/тёмную строку меню. Для «низкий заряд» `isTemplate = false` и явный красный.
 @MainActor
 enum MenuBarLabelRenderer {
@@ -83,15 +82,5 @@ enum MenuBarLabelRenderer {
         image.isTemplate = !content.isRed
         image.accessibilityDescription = content.text ?? "АКБ"
         return image
-    }
-}
-
-/// Сам label. Пересобирается автоматически при изменении наблюдаемого состояния.
-struct MenuBarLabel: View {
-    var monitor: BatteryMonitor
-
-    var body: some View {
-        let content = MenuBarLabelRenderer.content(for: monitor)
-        Image(nsImage: MenuBarLabelRenderer.image(content))
     }
 }

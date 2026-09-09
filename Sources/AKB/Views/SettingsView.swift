@@ -211,3 +211,33 @@ struct SettingsView: View {
         }
     }
 }
+
+/// Своё окно настроек (план §20.1).
+///
+/// `SettingsLink` внутри `NSHostingController` popover'а не работает — он связан
+/// со сценой `Settings`, до которой из AppKit-строки меню не достучаться;
+/// `NSApp.sendAction(showSettingsWindow:)` возвращает `true`, но окно не появляется.
+/// Поэтому окно создаётся вручную, ровно как окно онбординга.
+@MainActor
+final class SettingsWindowController {
+
+    static let shared = SettingsWindowController()
+    private var window: NSWindow?
+
+    func show(monitor: BatteryMonitor) {
+        if let window {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        let controller = NSHostingController(rootView: SettingsView(monitor: monitor))
+        let window = NSWindow(contentViewController: controller)
+        window.title = String(localized: "settings.window.title", defaultValue: "Настройки «АКБ»")
+        window.styleMask = [.titled, .closable, .miniaturizable]
+        window.isReleasedWhenClosed = false
+        window.center()
+        self.window = window
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+}

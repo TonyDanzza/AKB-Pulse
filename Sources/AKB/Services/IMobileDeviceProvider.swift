@@ -12,6 +12,13 @@ struct IMobileDeviceProvider: BatteryProvider {
     /// Настойчивый первый поиск телефона в Bonjour: 15 с шагом 3 с (см. listDevices).
     var discovery = RetryWindow(window: 15, interval: 3)
 
+    /// Флаги зарядки в логе: без них по логу не понять, когда телефон
+    /// подключили к питанию (план §20.2).
+    static func flags(_ status: BatteryStatus) -> String {
+        let yes = "да", no = "нет"
+        return "зарядка: \(status.isCharging ? yes : no), питание: \(status.externalConnected ? yes : no),"
+    }
+
     private func tool(_ name: String) throws -> URL {
         guard let url = ToolLocator.locate(name) else { throw ProviderError.toolNotFound }
         return url
@@ -105,7 +112,7 @@ struct IMobileDeviceProvider: BatteryProvider {
         if let status = try? await batteryViaUSBMux(device) {
             await resolver.warmCache(udid: device.udid)
             AKBLog.info(.provider, """
-                заряд \(status.percent)% путём usbmuxd \
+                заряд \(status.percent)%, \(Self.flags(status)) путём usbmuxd \
                 за \(String(format: "%.1f", Date().timeIntervalSince(started))) с
                 """)
             return status
@@ -148,7 +155,7 @@ struct IMobileDeviceProvider: BatteryProvider {
                     throw ProviderError.parseFailure
                 }
                 AKBLog.info(.provider, """
-                    заряд \(status.percent)% путём direct \
+                    заряд \(status.percent)%, \(Self.flags(status)) путём direct \
                     (\(resolved.ip), адрес: \(resolved.source.rawValue), \
                     попытка \(attempt + 1)) \
                     за \(String(format: "%.1f", Date().timeIntervalSince(started))) с
@@ -175,6 +182,8 @@ struct FakeProvider: BatteryProvider {
     var isCharging: Bool
     /// Сколько секунд телефон отвечает, прежде чем «уснуть» (`AKB_FAKE_STALE_AFTER`).
     var staleAfter: TimeInterval?
+    /// Период переключения зарядки (`AKB_FAKE_TOGGLE_CHARGING`, план §20.3).
+    var toggleCharging: TimeInterval?
     /// Точка отсчёта сна. Задаётся при создании провайдера, то есть при запуске приложения.
     var startedAt: Date = Date()
 
@@ -192,11 +201,20 @@ struct FakeProvider: BatteryProvider {
                             transport: .wifi)]
     }
 
+    /// Зарядка «мигает» с заданным периодом, чтобы было видно, обновляется ли
+    /// иконка в строке меню сама по себе.
+    private var chargingNow: Bool {
+        guard let toggleCharging else { return isCharging }
+        let step = Int(Date().timeIntervalSince(startedAt) / toggleCharging)
+        return step % 2 == 0 ? isCharging : !isCharging
+    }
+
     func battery(for device: PhoneDevice) async throws -> BatteryStatus {
         if isAsleep { throw ProviderError.deviceUnreachable(device.udid) }
+        let charging = chargingNow
         return BatteryStatus(percent: percent,
-                             isCharging: isCharging,
-                             externalConnected: isCharging,
+                             isCharging: charging,
+                             externalConnected: charging,
                              fullyCharged: percent >= 100,
                              updatedAt: Date())
     }

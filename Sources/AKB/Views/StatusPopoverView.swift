@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Содержимое `MenuBarExtra` в стиле `.window` (план §14.1).
+/// Содержимое `NSPopover` строки меню (план §14.1, §20.1).
 ///
 /// Раскладка: сетка 4 pt, ширина 280 во всех состояниях, паддинг 14 × 12.
 /// Отступы задаются `.padding(.bottom, …)` у блоков, а не общим `spacing`,
@@ -9,6 +9,9 @@ import SwiftUI
 struct StatusPopoverView: View {
 
     @Bindable var monitor: BatteryMonitor
+    /// Открыть настройки. Задаёт `StatusItemController`: `SettingsLink` внутри
+    /// `NSHostingController` со сценой `Settings` не связан (план §20.1).
+    var onSettings: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -210,12 +213,11 @@ struct StatusPopoverView: View {
             .help(L("action.refresh", "Обновить"))
             .accessibilityLabel(L("action.refresh", "Обновить"))
 
-            SettingsLink {
+            Button {
+                onSettings()
+            } label: {
                 glyph(SymbolName.settings)
             }
-            .simultaneousGesture(TapGesture().onEnded {
-                NSApp.activate(ignoringOtherApps: true)
-            })
             .help(L("action.settings", "Настройки…"))
             .accessibilityLabel(L("action.settings", "Настройки…"))
 

@@ -97,7 +97,8 @@ enum Prefs {
 }
 
 /// Отладочный режим из переменных окружения (план §9, §16.7):
-/// `AKB_FAKE_PERCENT`, `AKB_FAKE_CHARGING`, `AKB_FAKE_STALE_AFTER`.
+/// `AKB_FAKE_PERCENT`, `AKB_FAKE_CHARGING`, `AKB_FAKE_STALE_AFTER`,
+/// `AKB_FAKE_TOGGLE_CHARGING`.
 enum FakeMode {
 
     static var percent: Int? {
@@ -121,6 +122,15 @@ enum FakeMode {
     static var staleAfter: TimeInterval? {
         guard let raw = ProcessInfo.processInfo.environment["AKB_FAKE_STALE_AFTER"],
               let value = TimeInterval(raw), value >= 0 else { return nil }
+        return value
+    }
+
+    /// Каждые N секунд фейковый телефон встаёт на зарядку и снимается с неё
+    /// (`AKB_FAKE_TOGGLE_CHARGING`) — так проверяется, что молния в строке меню
+    /// меняется сама, без открытия popover (план §20.3).
+    static var toggleCharging: TimeInterval? {
+        guard let raw = ProcessInfo.processInfo.environment["AKB_FAKE_TOGGLE_CHARGING"],
+              let value = TimeInterval(raw), value > 0 else { return nil }
         return value
     }
 

@@ -51,8 +51,9 @@ final class BatteryMonitor {
     /// интервал (до 5 минут) незачем.
     static let fastRetryDelay = 60
     /// На зарядке состояние меняется быстро (проценты растут, «Заряжается»
-    /// появляется и исчезает), а телефон в это время и так не спит (план §18.2).
-    static let chargingInterval = 15
+    /// появляется и исчезает), а телефон в это время не спит и отвечает
+    /// через usbmuxd за доли секунды — 5 с ничего не стоят (план §20.2).
+    static let chargingInterval = 5
     private var observers: [NSObjectProtocol] = []
     /// Экран Mac спит или сессия заблокирована — опрос стоит (план §16.6).
     private var isPaused = false
@@ -83,7 +84,8 @@ final class BatteryMonitor {
         } else if let fake = FakeMode.percent {
             self.provider = FakeProvider(percent: fake,
                                          isCharging: FakeMode.isCharging,
-                                         staleAfter: FakeMode.staleAfter)
+                                         staleAfter: FakeMode.staleAfter,
+                                         toggleCharging: FakeMode.toggleCharging)
         } else {
             self.provider = IMobileDeviceProvider()
         }
@@ -207,8 +209,8 @@ final class BatteryMonitor {
     }
 
     /// Чистое правило выбора паузы: обычный интервал после успеха, не больше
-    /// минуты после неудачной попытки связи (план §17) и 15 с, пока телефон
-    /// на питании (план §18.2).
+    /// минуты после неудачной попытки связи (план §17) и 5 с, пока телефон
+    /// на питании (план §18.2, §20.2).
     static func nextPollDelay(interval: Int, lastFailed: Bool, isOnPower: Bool = false) -> Int {
         let interval = max(10, interval)
         if isOnPower { return min(chargingInterval, interval) }

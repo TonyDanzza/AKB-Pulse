@@ -1090,6 +1090,23 @@
         }
       }
     },
+    "settings.window.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AKB Settings"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройки «АКБ»"
+          }
+        }
+      }
+    },
     "state.charging": {
       "extractionState": "manual",
       "localizations": {

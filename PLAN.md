@@ -395,3 +395,23 @@ AKB/
 - Тесты: `FileLog` ротация (инжектированный каталог во временной папке, лимит 1 КБ для теста) — 2 кейса; сборка файла отчёта — 1 кейс (шапка присутствует, порядок файлов).
 - Вручную: нажать кнопку, сохранить на Рабочий стол, открыть файл, убедиться, что там шапка и строки provider/events. Скриншот `screenshots/v5/settings-log.png`.
 - Коммит «Фаза 5: файловый лог и кнопка «Сохранить лог…»», DMG пересобрать, **заменить `/Applications/AKB.app`** Release-сборкой и запустить (как в §18.3), настройки не трогать. Файл отчёта после ручной проверки удалить с Рабочего стола.
+
+## 20. Фаза 4.3 — иконка в строке меню обновляется в фоне (2026-09-09 18:20)
+
+Баг от пользователя: статус зарядки (молния) в строке меню не меняется, пока не откроешь popover. Лог (`~/Library/Logs/AKB/akb.log`) показывает, что опросы в фоне идут и данные приходят — не обновляется именно **label `MenuBarExtra`**. Это известная ненадёжность SwiftUI: label перерисовывается не при каждом изменении @Observable, пока окно закрыто; при открытии popover `.task` дергает `refresh`, и label пересобирается — отсюда «обновляется мгновенно, но только когда открываю».
+
+### 20.1 Строка меню на AppKit (`StatusItemController`, @MainActor)
+- Убрать `MenuBarExtra` из `AKBApp.body`; оставить сцену `Settings`. Политика `.accessory` как сейчас.
+- `StatusItemController` создаётся в `applicationDidFinishLaunching`: `NSStatusBar.system.statusItem(withLength: .variableLength)`, `button.image = MenuBarLabelRenderer.image(content)`, `button.imagePosition = .imageOnly`. Обновление — цикл `withObservationTracking { _ = MenuBarLabelRenderer.content(for: monitor) } onChange: { Task { @MainActor in self.render() } }` (перезапускать tracking после каждого срабатывания). Рендерить только если `Content` изменился (он `Equatable`), чтобы не гонять `ImageRenderer` зря. Дополнительно страховка: таймер раз в 30 с сравнивает `Content` и перерисовывает при расхождении.
+- Popover: `NSPopover`, `behavior = .transient`, `contentViewController = NSHostingController(rootView: StatusPopoverView(monitor:))`, показ по клику на кнопку `show(relativeTo: button.bounds, of: button, preferredEdge: .minY)`; при открытии — `monitor.refresh(rediscover: true)` (уже есть в `.task`, проверить, что срабатывает при каждом показе, иначе вызывать из контроллера). Правый клик — то же, что левый. Внешний вид popover должен остаться тем же, что и в `MenuBarExtra(.window)` (материал/стекло — `NSPopover` даёт свой стандартный; это нативно и допустимо).
+- «Настройки…» в popover: проверить, что `SettingsLink` работает внутри `NSHostingController`. Если нет — `NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)` + `NSApp.activate(ignoringOtherApps: true)`; попover закрыть перед этим.
+- `MenuBarLabel` (SwiftUI-обёртка) удалить, `MenuBarLabelRenderer` оставить.
+
+### 20.2 Быстрее на питании
+- `nextPollDelay`: на питании `min(interval, 5)` вместо 15. Обновить тесты и README (на зарядке телефон не спит, ответ через usbmuxd 0,2 с — 5 с ничего не стоит).
+- В строку лога провайдера добавлять флаги: `заряд 67%, зарядка: да, питание: да, путём …` — без этого по логу нельзя понять, когда телефон подключили.
+
+### 20.3 Проверка (обязательно без открытия popover)
+- Fake-режим: добавить env `AKB_FAKE_TOGGLE_CHARGING=<сек>` — фейковый провайдер переключает `isCharging/externalConnected` каждые N секунд. Запустить с `AKB_FAKE_PERCENT=72 AKB_FAKE_TOGGLE_CHARGING=8`, **не открывая popover**, снять строку меню через `screencapture -x -R` три раза с шагом 8 с: молния должна появляться и исчезать. Скриншоты `screenshots/v4/menubar-toggle-1.png`, `-2.png`, `-3.png`, открыть через Read, убедиться.
+- Реальный режим: приложение установить в /Applications (как в §18.3), в логе через ~10 с после появления телефона проверить, что флаги пишутся.
+- Тесты зелёные, сборка без warnings, коммит «Фаза 4.3: строка меню на NSStatusItem, 5 с на зарядке», DMG пересобрать, `/Applications/AKB.app` заменить и запустить.

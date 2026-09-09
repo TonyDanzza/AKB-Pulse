@@ -18,31 +18,31 @@ struct AKBApp: App {
     }
 
     var body: some Scene {
-        MenuBarExtra {
-            StatusPopoverView(monitor: monitor)
-        } label: {
-            MenuBarLabel(monitor: monitor)
-        }
-        .menuBarExtraStyle(.window)
-
+        // Строка меню живёт на AppKit (`StatusItemController`, план §20.1):
+        // label `MenuBarExtra` не перерисовывался, пока popover закрыт.
         Settings {
             SettingsView(monitor: monitor)
         }
     }
 }
 
-/// Делегат нужен ровно для двух вещей: убрать иконку из Dock (дублирует `LSUIElement`)
-/// и поднять UNUserNotificationCenter до первого уведомления.
+/// Делегат убирает иконку из Dock (дублирует `LSUIElement`), поднимает
+/// UNUserNotificationCenter до первого уведомления и владеет строкой меню.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Монитор создаётся в `AKBApp.init`, до того как AppKit позовёт делегата.
     static var monitor: BatteryMonitor?
 
+    private var statusItem: StatusItemController?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         NotificationService.shared.bootstrap()
         if let monitor = Self.monitor {
+            let controller = StatusItemController(monitor: monitor)
+            controller.start()
+            statusItem = controller
             OnboardingWindowController.shared.showIfNeeded(monitor: monitor)
         }
     }
