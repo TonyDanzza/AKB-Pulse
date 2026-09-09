@@ -25,7 +25,7 @@ struct SettingsView: View {
             systemSection
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 660)
+        .frame(width: 460, height: 524)
         .onAppear {
             launchAtLogin = LaunchAtLogin.isEnabled
             toolDirectory = ToolLocator.resolvedDirectory
@@ -40,7 +40,7 @@ struct SettingsView: View {
             if monitor.devices.isEmpty {
                 Text(L("settings.noDevices",
                        "Ни одного iPhone не найдено. Включи в Finder «Показывать этот iPhone, если он подключён к Wi‑Fi»."))
-                    .font(.callout)
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
@@ -51,7 +51,7 @@ struct SettingsView: View {
                 }
             }
 
-            HStack {
+            HStack(spacing: 8) {
                 Button(L("settings.rediscover", "Обновить список")) {
                     isDiscovering = true
                     Task {
@@ -59,6 +59,7 @@ struct SettingsView: View {
                         isDiscovering = false
                     }
                 }
+                .controlSize(.small)
                 .disabled(isDiscovering)
                 if isDiscovering {
                     ProgressView().controlSize(.small)
@@ -161,12 +162,14 @@ struct SettingsView: View {
             Button(L("settings.showOnboarding", "Показать инструкцию…")) {
                 OnboardingWindowController.shared.show(monitor: monitor)
             }
+            .controlSize(.small)
 
             LabeledContent {
                 Button(L("settings.choosePath", "Указать путь…"), systemImage: SymbolName.folder) {
                     chooseToolDirectory()
                 }
                 .labelStyle(.titleOnly)
+                .controlSize(.small)
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("libimobiledevice")

@@ -29,6 +29,14 @@ ideviceinfo -n -u <UDID> -q com.apple.mobile.battery
 `BatteryIsCharging`, `ExternalConnected`, `FullyCharged` — это и есть всё,
 что читает приложение.
 
+### Если iPhone не находится
+
+Обнаружение по Wi-Fi идёт через Bonjour/mDNS в локальной сети. Если на Mac
+или iPhone включён VPN — разреши в нём доступ к локальной сети или выключи
+его на время поиска: VPN часто режет mDNS, и `idevice_id -n` возвращает
+пусто, даже когда всё остальное настроено правильно. Ещё проверь, что
+телефон разблокирован и находится в той же сети Wi-Fi, что и Mac.
+
 ## Установка
 
 1. Открой `AKB-1.0.dmg`, перетащи `AKB.app` в папку «Программы».
@@ -46,7 +54,7 @@ ideviceinfo -n -u <UDID> -q com.apple.mobile.battery
 → «Доверять» на телефоне → отключить кабель. Окно можно открыть снова:
 настройки → «Система» → «Показать инструкцию…».
 
-![Окно первого запуска](screenshots/onboarding.png)
+![Окно первого запуска](screenshots/v2/onboarding.png)
 
 ### Если Mac не даёт открыть
 
@@ -160,7 +168,7 @@ Sources/AKB/
     LaunchAtLogin.swift           SMAppService
   Views/                          MenuBarLabel, StatusPopoverView,
                                   SettingsView, EmptyStateView,
-                                  OnboardingView
+                                  OnboardingView, Hairline
 Tests/AKBTests/                   24 теста, Swift Testing
 ```
 

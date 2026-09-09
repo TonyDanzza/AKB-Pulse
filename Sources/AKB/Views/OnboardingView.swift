@@ -30,23 +30,20 @@ struct OnboardingView: View {
                 Text(L("onboarding.title", "Добро пожаловать в «АКБ»"))
                     .font(.title2.weight(.semibold))
                 Text(L("onboarding.subtitle", "Четыре шага — и заряд iPhone будет в строке меню."))
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
-            VStack(alignment: .leading, spacing: 14) {
-                step(1, symbol: SymbolName.cable,
-                     text: L("onboarding.step1", "Подключи iPhone к Mac кабелем."))
-                step(2, symbol: SymbolName.window,
-                     text: L("onboarding.step2", "В Finder выбери iPhone → вкладка «Основные» → включи «Показывать этот iPhone, если он подключён к Wi‑Fi».")) {
+            VStack(alignment: .leading, spacing: 12) {
+                step(1, text: L("onboarding.step1", "Подключи iPhone к Mac кабелем."))
+                step(2, text: L("onboarding.step2", "В Finder выбери iPhone → вкладка «Основные» → включи «Показывать этот iPhone, если он подключён к Wi‑Fi».")) {
                     Button(L("onboarding.openFinder", "Открыть Finder")) {
                         NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Library/CoreServices/Finder.app"))
                     }
                     .controlSize(.small)
                 }
-                step(3, symbol: SymbolName.tap,
-                     text: L("onboarding.step3", "На iPhone нажми «Доверять»."))
-                step(4, symbol: SymbolName.wifi,
-                     text: L("onboarding.step4", "Отключи кабель. Mac и iPhone должны быть в одной сети Wi‑Fi."))
+                step(3, text: L("onboarding.step3", "На iPhone нажми «Доверять»."))
+                step(4, text: L("onboarding.step4", "Отключи кабель. Mac и iPhone должны быть в одной сети Wi‑Fi."))
             }
 
             Spacer(minLength: 0)
@@ -63,7 +60,7 @@ struct OnboardingView: View {
             }
         }
         .padding(22)
-        .frame(width: 480, height: 470)
+        .frame(width: 480, height: 430)
         .task { startPolling() }
         .onDisappear { pollTask?.cancel() }
     }
@@ -72,17 +69,18 @@ struct OnboardingView: View {
 
     @ViewBuilder
     private func step(_ number: Int,
-                      symbol: String,
                       text: String,
                       @ViewBuilder accessory: () -> some View = { EmptyView() }) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: symbol)
-                .font(.system(size: 15))
-                .frame(width: 30, height: 30)
+            Text("\(number)")
+                .font(.body.weight(.medium))
+                .monospacedDigit()
+                .frame(width: 28, height: 28)
                 .background(Circle().fill(.quaternary))
                 .foregroundStyle(.primary)
             VStack(alignment: .leading, spacing: 4) {
                 Text(text)
+                    .font(.body)
                     .fixedSize(horizontal: false, vertical: true)
                 accessory()
             }
@@ -130,10 +128,6 @@ struct OnboardingView: View {
 }
 
 extension SymbolName {
-    static var cable: String { resolve("cable.connector", "cable.connector.horizontal", "bolt.horizontal") }
-    static var window: String { resolve("macwindow", "rectangle.on.rectangle") }
-    static var tap: String { resolve("hand.tap", "hand.point.up.left") }
-    static var wifi: String { resolve("wifi") }
     static var checkmark: String { resolve("checkmark.circle.fill", "checkmark.circle") }
 }
 
