@@ -129,16 +129,6 @@ struct OnboardingView: View {
     }
 }
 
-/// Тонкий вертикальный разделитель вместо точки-разделителя.
-struct Hairline: View {
-    var body: some View {
-        Rectangle()
-            .frame(width: 1, height: 11)
-            .opacity(0.4)
-            .foregroundStyle(.secondary)
-    }
-}
-
 extension SymbolName {
     static var cable: String { resolve("cable.connector", "cable.connector.horizontal", "bolt.horizontal") }
     static var window: String { resolve("macwindow", "rectangle.on.rectangle") }

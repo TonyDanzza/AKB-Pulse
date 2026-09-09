@@ -37,7 +37,8 @@ struct EmptyStateView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .font(.callout)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
         } actions: {
             Button(L("empty.retry", "Проверить снова"), systemImage: SymbolName.refresh, action: onRetry)
                 .buttonStyle(.borderedProminent)
@@ -84,6 +85,7 @@ struct EmptyStateView: View {
               2. Finder → iPhone → Основные → включи «Показывать этот iPhone, если он подключён к Wi‑Fi».
               3. Нажми «Доверять» на телефоне.
               4. Отключи кабель — Mac и iPhone должны быть в одной сети Wi‑Fi.
+              5. Если на Mac или iPhone включён VPN — разреши в нём доступ к локальной сети или выключи его на время поиска.
               """)
         case .deviceUnreachable:
             L("error.deviceUnreachable.description",

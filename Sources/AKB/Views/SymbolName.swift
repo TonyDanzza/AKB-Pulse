@@ -35,6 +35,7 @@ enum SymbolName {
     static var refresh: String { resolve("arrow.clockwise") }
     static var settings: String { resolve("gearshape", "gear") }
     static var quit: String { resolve("power") }
+    static var powerplug: String { resolve("powerplug.fill", "powerplug") }
     static var copy: String { resolve("doc.on.doc") }
     static var folder: String { resolve("folder") }
 }
