@@ -25,7 +25,7 @@ struct SettingsView: View {
             systemSection
         }
         .formStyle(.grouped)
-        .frame(width: 440, height: 420)
+        .frame(width: 460, height: 620)
         .onAppear {
             launchAtLogin = LaunchAtLogin.isEnabled
             toolDirectory = ToolLocator.resolvedDirectory

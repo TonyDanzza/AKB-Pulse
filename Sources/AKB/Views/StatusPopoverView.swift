@@ -13,9 +13,12 @@ struct StatusPopoverView: View {
                 header
                 readyBody(status)
             case .failed(let error):
+                // ContentUnavailableView схлопывается в ноль, если ему не задать высоту:
+                // в окне MenuBarExtra нет «свободного места», под которое он рассчитан.
                 EmptyStateView(error: error, lastKnown: monitor.lastKnownStatus) {
                     Task { await monitor.refresh(rediscover: true) }
                 }
+                .frame(minHeight: 300)
             case .idle, .loading:
                 loadingBody
             }
@@ -24,7 +27,7 @@ struct StatusPopoverView: View {
             actions
         }
         .padding(14)
-        .frame(width: 300)
+        .frame(width: monitor.phase.isFailed ? 360 : 300)
         .task { await monitor.refresh(rediscover: false) }
     }
 
@@ -96,15 +99,19 @@ struct StatusPopoverView: View {
     @ViewBuilder
     private var actions: some View {
         HStack(spacing: 8) {
+            // Обновление — только значок: три подписи в 300 pt не помещаются.
             Button {
                 Task { await monitor.refresh(rediscover: true) }
             } label: {
                 Label(L("action.refresh", "Обновить"), systemImage: SymbolName.refresh)
+                    .labelStyle(.iconOnly)
             }
             .disabled(monitor.isRefreshing)
+            .help(L("action.refresh", "Обновить"))
 
             SettingsLink {
                 Label(L("action.settings", "Настройки…"), systemImage: SymbolName.settings)
+                    .labelStyle(.titleAndIcon)
             }
             .simultaneousGesture(TapGesture().onEnded {
                 NSApp.activate(ignoringOtherApps: true)
@@ -116,9 +123,11 @@ struct StatusPopoverView: View {
                 NSApplication.shared.terminate(nil)
             } label: {
                 Label(L("action.quit", "Выход"), systemImage: SymbolName.quit)
+                    .labelStyle(.titleAndIcon)
             }
         }
-        .labelStyle(.titleAndIcon)
+        .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
         .akbButtonStyle()
         .controlSize(.regular)
     }

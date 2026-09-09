@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Observation
+import OSLog
 
 /// Состояние приложения: что показывать в строке меню и в popover.
 @MainActor
@@ -34,6 +35,8 @@ final class BatteryMonitor {
     }
 
     // MARK: - Внутреннее
+
+    static let log = Logger(subsystem: "ru.tonydanzza.akb", category: "monitor")
 
     private let provider: BatteryProvider
     private var policy: AlertPolicy
@@ -122,6 +125,7 @@ final class BatteryMonitor {
         do {
             if rediscover || devices.isEmpty || selectedDevice == nil {
                 let found = try await provider.listDevices()
+                Self.log.info("найдено устройств: \(found.count, privacy: .public)")
                 devices = found
                 selectedDevice = Self.pick(from: found, preferredUDID: Prefs.selectedUDID)
             }
@@ -134,8 +138,10 @@ final class BatteryMonitor {
             phase = .ready(status)
             evaluateAlert(status, device: device)
         } catch let error as ProviderError {
+            Self.log.info("опрос не удался: \(String(describing: error), privacy: .public)")
             phase = .failed(error)
         } catch {
+            Self.log.info("неожиданная ошибка: \(String(describing: error), privacy: .public)")
             phase = .failed(.parseFailure)
         }
     }
@@ -176,5 +182,13 @@ final class BatteryMonitor {
         if policy.evaluate(status) {
             NotificationService.shared.postLowBattery(deviceName: device.name, percent: status.percent)
         }
+    }
+}
+
+extension BatteryMonitor.Phase {
+    /// Пустое состояние занимает больше места, чем обычный экран с цифрой.
+    var isFailed: Bool {
+        if case .failed = self { return true }
+        return false
     }
 }
