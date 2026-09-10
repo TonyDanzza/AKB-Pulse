@@ -20,7 +20,7 @@ enum SupportReport {
         let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
         return """
-            ===== АКБ =====
+            ===== AKB Pulse =====
             Дата: \(FileLog.timestamp(now))
             Версия: \(version) (\(build))
             macOS: \(ProcessInfo.processInfo.operatingSystemVersionString)
@@ -111,11 +111,11 @@ enum SupportReport {
 
     // MARK: - Имя файла
 
-    /// `АКБ-лог-2026-09-09-1803.txt`.
+    /// `AKB-Pulse-лог-2026-09-09-1803.txt`.
     static func suggestedFileName(now: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd-HHmm"
-        return "АКБ-лог-\(formatter.string(from: now)).txt"
+        return "AKB-Pulse-лог-\(formatter.string(from: now)).txt"
     }
 }

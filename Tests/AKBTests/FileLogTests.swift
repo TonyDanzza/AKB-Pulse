@@ -90,7 +90,7 @@ struct SupportReportTests {
                                          logDirectory: directory,
                                          unifiedLog: "хвост unified log")
 
-        #expect(report.contains("===== АКБ ====="))
+        #expect(report.contains("===== AKB Pulse ====="))
         #expect(report.contains("macOS: "))
         #expect(report.contains("Mac: "))
         #expect(report.contains("Интервал опроса:"))

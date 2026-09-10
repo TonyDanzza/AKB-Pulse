@@ -20,14 +20,14 @@ struct OnboardingView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             if !Self.isInApplicationsFolder {
-                Label(L("onboarding.moveToApplications", "Лучше перенести «АКБ» в папку «Программы»."),
+                Label(L("onboarding.moveToApplications", "Лучше перенести «AKB Pulse» в папку «Программы»."),
                       systemImage: SymbolName.folder)
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(L("onboarding.title", "Добро пожаловать в «АКБ»"))
+                Text(L("onboarding.title", "Добро пожаловать в «AKB Pulse»"))
                     .font(.title2.weight(.semibold))
                 Text(L("onboarding.subtitle", "Четыре шага — и заряд iPhone будет в строке меню."))
                     .font(.subheadline)
@@ -166,7 +166,7 @@ final class OnboardingWindowController {
         )
         let window = NSWindow(contentViewController: controller)
         window.title = String(localized: "onboarding.title",
-                              defaultValue: "Добро пожаловать в «АКБ»")
+                              defaultValue: "Добро пожаловать в «AKB Pulse»")
         window.styleMask = [.titled, .closable, .miniaturizable]
         window.isReleasedWhenClosed = false
         window.center()

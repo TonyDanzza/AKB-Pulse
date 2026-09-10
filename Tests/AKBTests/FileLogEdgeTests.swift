@@ -154,7 +154,7 @@ struct SupportReportEdgeTests {
     @Test("Имя файла отчёта")
     func fileName() {
         let name = SupportReport.suggestedFileName(now: Date())
-        #expect(name.wholeMatch(of: /АКБ-лог-\d{4}-\d{2}-\d{2}-\d{4}\.txt/) != nil)
+        #expect(name.wholeMatch(of: /AKB-Pulse-лог-\d{4}-\d{2}-\d{2}-\d{4}\.txt/) != nil)
     }
 
     @Test("Модель Mac читается из sysctl")

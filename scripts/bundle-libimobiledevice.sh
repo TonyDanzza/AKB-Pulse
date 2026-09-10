@@ -139,7 +139,7 @@ for formula in libimobiledevice libplist libusbmuxd libimobiledevice-glue openss
     copy_license "$formula"
 done
 cat > "$LICENSES/README.txt" <<'TXT'
-АКБ использует утилиты и библиотеки проекта libimobiledevice
+AKB Pulse использует утилиты и библиотеки проекта libimobiledevice
 (libimobiledevice, libplist, libusbmuxd, libimobiledevice-glue),
 распространяемые под LGPL-2.1, и OpenSSL (Apache-2.0).
 Библиотеки подключены динамически и лежат в Contents/Frameworks —

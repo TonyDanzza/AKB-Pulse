@@ -53,7 +53,7 @@ struct ParserEdgeTests {
 
     @Test("UDID в разном регистре считаются разными строками")
     func udidCaseSensitive() {
-        let text = "00008150-000A1B2C3D4E5F60\n00008150-00086dc21492401c"
+        let text = "00008150-000A1B2C3D4E5F60\n00008150-000a1b2c3d4e5f60"
         #expect(IMobileDeviceOutputParser.udidList(text).count == 2)
     }
 

@@ -80,7 +80,7 @@ enum MenuBarLabelRenderer {
                           height: CGFloat(cgImage.height) / scale)
         let image = NSImage(cgImage: cgImage, size: size)
         image.isTemplate = !content.isRed
-        image.accessibilityDescription = content.text ?? "АКБ"
+        image.accessibilityDescription = content.text ?? "AKB Pulse"
         return image
     }
 }

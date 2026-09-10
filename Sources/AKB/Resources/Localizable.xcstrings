@@ -331,7 +331,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "AKB reads the battery level with ideviceinfo. Install it with Homebrew:"
+            "value": "AKB Pulse reads the battery level with ideviceinfo. Install it with Homebrew:"
           }
         },
         "ru": {
@@ -535,13 +535,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Better move AKB into the Applications folder."
+            "value": "Better move AKB Pulse into the Applications folder."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Лучше перенести «АКБ» в папку «Программы»."
+            "value": "Лучше перенести «AKB Pulse» в папку «Программы»."
           }
         }
       }
@@ -688,13 +688,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Welcome to AKB"
+            "value": "Welcome to AKB Pulse"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Добро пожаловать в «АКБ»"
+            "value": "Добро пожаловать в «AKB Pulse»"
           }
         }
       }
@@ -1147,13 +1147,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "AKB Settings"
+            "value": "AKB Pulse Settings"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Настройки «АКБ»"
+            "value": "Настройки «AKB Pulse»"
           }
         }
       }

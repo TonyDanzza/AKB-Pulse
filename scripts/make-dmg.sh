@@ -1,5 +1,5 @@
 #!/bin/bash
-# Собирает Release и делает готовый к раздаче образ dist/AKB-<версия>.dmg.
+# Собирает Release и делает готовый к раздаче образ dist/AKB-Pulse-<версия>.dmg.
 #
 #   ./scripts/make-dmg.sh
 #
@@ -14,7 +14,7 @@ BUILD="$ROOT/build"
 
 VERSION="$(awk '/MARKETING_VERSION:/ {gsub(/"/, "", $2); print $2; exit}' project.yml)"
 : "${VERSION:=1.0}"
-DMG="$DIST/AKB-$VERSION.dmg"
+DMG="$DIST/AKB-Pulse-$VERSION.dmg"
 
 echo "==> Генерирую проект"
 xcodegen generate >/dev/null
@@ -42,7 +42,7 @@ ln -s /Applications "$STAGE/Applications"
 
 mkdir -p "$DIST"
 rm -f "$DMG"
-hdiutil create -volname "АКБ" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
+hdiutil create -volname "AKB Pulse" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
 
 echo
 echo "Готово: $DMG ($(du -h "$DMG" | cut -f1))"

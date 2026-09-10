@@ -21,10 +21,10 @@ func click(_ point: CGPoint) {
 
 let args = CommandLine.arguments.dropFirst().compactMap(Double.init)
 
-// Элемент «АКБ» ищем по строке меню приложения через Accessibility.
+// Элемент «AKB Pulse» ищем по строке меню приложения через Accessibility.
 guard let akb = NSWorkspace.shared.runningApplications
     .first(where: { $0.bundleIdentifier == "ru.tonydanzza.akb" }) else {
-    FileHandle.standardError.write(Data("АКБ не запущен\n".utf8))
+    FileHandle.standardError.write(Data("AKB Pulse не запущен\n".utf8))
     exit(1)
 }
 

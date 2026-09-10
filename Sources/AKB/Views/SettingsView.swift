@@ -238,7 +238,7 @@ final class SettingsWindowController {
         }
         let controller = NSHostingController(rootView: SettingsView(monitor: monitor))
         let window = NSWindow(contentViewController: controller)
-        window.title = String(localized: "settings.window.title", defaultValue: "Настройки «АКБ»")
+        window.title = String(localized: "settings.window.title", defaultValue: "Настройки «AKB Pulse»")
         window.styleMask = [.titled, .closable, .miniaturizable]
         window.isReleasedWhenClosed = false
         window.center()

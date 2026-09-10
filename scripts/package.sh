@@ -3,7 +3,7 @@
 #
 #   ./scripts/package.sh
 #
-# Результат: dist/AKB-<версия>.zip — распаковывается в AKB.app.
+# Результат: dist/AKB-Pulse-<версия>.zip — распаковывается в AKB.app.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -25,13 +25,13 @@ APP="$BUILD/Build/Products/Release/AKB.app"
 [ -d "$APP" ] || { echo "AKB.app не собрался"; exit 1; }
 
 mkdir -p "$DIST"
-rm -rf "$DIST/AKB.app" "$DIST/AKB-$VERSION.zip"
+rm -rf "$DIST/AKB.app" "$DIST/AKB-Pulse-$VERSION.zip"
 cp -R "$APP" "$DIST/AKB.app"
 
 echo "==> Пакую в zip"
-ditto -c -k --keepParent "$DIST/AKB.app" "$DIST/AKB-$VERSION.zip"
+ditto -c -k --keepParent "$DIST/AKB.app" "$DIST/AKB-Pulse-$VERSION.zip"
 
 echo
-echo "Готово: $DIST/AKB-$VERSION.zip"
+echo "Готово: $DIST/AKB-Pulse-$VERSION.zip"
 echo "Проверка подписи:"
 codesign -dv "$DIST/AKB.app" 2>&1 | sed 's/^/    /'
