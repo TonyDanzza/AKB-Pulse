@@ -1,6 +1,6 @@
 # AKB Pulse — заряд iPhone в строке меню macOS
 
-**Скачать:** [AKB-Pulse-1.4.dmg](https://github.com/TonyDanzza/AKB-Pulse/releases/latest/download/AKB-Pulse-1.4.dmg) — macOS 26+, Apple Silicon.
+**Скачать:** [AKB-Pulse-1.4.dmg](https://github.com/TonyDanzza/AKB-Pulse/releases/latest/download/AKB-Pulse-1.4.dmg) — macOS 26+, Apple Silicon. История версий — в [CHANGELOG.md](CHANGELOG.md).
 
 При первом запуске: правая кнопка → Открыть (приложение подписано без Apple Developer ID).
 
