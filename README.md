@@ -1,6 +1,6 @@
 # AKB Pulse — заряд iPhone в строке меню macOS
 
-**Скачать:** [AKB-Pulse-1.4.dmg](https://github.com/TonyDanzza/AKB-Pulse/releases/latest/download/AKB-Pulse-1.4.dmg) — macOS 26+, Apple Silicon. История версий — в [CHANGELOG.md](CHANGELOG.md).
+**Скачать:** [AKB-Pulse-1.4.1.dmg](https://github.com/TonyDanzza/AKB-Pulse/releases/latest/download/AKB-Pulse-1.4.1.dmg) — macOS 26+, Apple Silicon. История версий — в [CHANGELOG.md](CHANGELOG.md).
 
 При первом запуске: правая кнопка → Открыть (приложение подписано без Apple Developer ID).
 
@@ -139,8 +139,8 @@ xcodebuild -project AKB.xcodeproj -scheme AKB -configuration Debug \
 Сборка для раздачи:
 
 ```bash
-./scripts/make-dmg.sh       # → dist/AKB-Pulse-1.4.dmg (готовый образ)
-./scripts/package.sh        # → dist/AKB-Pulse-1.4.zip (просто архив)
+./scripts/make-dmg.sh       # → dist/AKB-Pulse-1.4.1.dmg (готовый образ)
+./scripts/package.sh        # → dist/AKB-Pulse-1.4.1.zip (просто архив)
 ```
 
 Оба скрипта собирают Release. Утилиты libimobiledevice встраиваются в
@@ -207,6 +207,9 @@ H=/Applications/AKB.app/Contents/Helpers/akb-direct
 - **Уведомления** — общий выключатель и отдельный у каждого уведомления:
   «Низкий заряд» с порогом 10…50 % (по умолчанию 30 %) и повтором на каждой
   ступени −10 % (30 → 20 → 10) и «Отключить от зарядки».
+
+  Уведомления подчиняются режиму «Не беспокоить» и фокусам macOS: включи
+  фокус на ночь, и AKB Pulse будет молчать.
 - **Система** — автозапуск, кнопка «Показать инструкцию…» и «Сохранить лог…».
 
 Опрос выполняется также при пробуждении Mac и при открытии окна.
@@ -260,7 +263,7 @@ AKB Pulse пишет события в `~/Library/Logs/AKB/akb.log` (ротац�
 
 ## Передать другому
 
-Собери `./scripts/make-dmg.sh` и отдай `dist/AKB-Pulse-1.4.dmg`. Ставить ничего
+Собери `./scripts/make-dmg.sh` и отдай `dist/AKB-Pulse-1.4.1.dmg`. Ставить ничего
 не нужно: libimobiledevice уже внутри. Получателю остаётся два шага —
 включить для своего телефона галочку Wi-Fi в Finder (окно первого запуска
 показывает, как) и при первом открытии обойти Gatekeeper, как описано выше.
@@ -316,8 +319,8 @@ Tests/AKBTests/                   274 теста, Swift Testing
 scripts/
   dev/click-menubar.swift      клик по строке меню для снимков экрана
   bundle-libimobiledevice.sh   встраивает утилиты и dylib в бандл
-  make-dmg.sh                  Release → dist/AKB-Pulse-1.4.dmg
-  package.sh                   Release → dist/AKB-Pulse-1.4.zip
+  make-dmg.sh                  Release → dist/AKB-Pulse-1.4.1.dmg
+  package.sh                   Release → dist/AKB-Pulse-1.4.1.zip
 ```
 
 Сторонних SPM-зависимостей нет — только системные фреймворки.

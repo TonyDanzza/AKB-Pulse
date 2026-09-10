@@ -35,7 +35,10 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
                                              defaultValue: "%1$@: %2$d%%. Поставь на зарядку."),
                               deviceName, percent)
         content.sound = .default
-        content.interruptionLevel = .timeSensitive
+        // Не срочное: time-sensitive пробивает «Не беспокоить», а разряженный
+        // iPhone ночью подождёт до утра. Тишиной управляет фокус macOS,
+        // как у остальных приложений.
+        content.interruptionLevel = .active
         post(content)
     }
 
