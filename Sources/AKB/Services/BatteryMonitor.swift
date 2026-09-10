@@ -293,7 +293,17 @@ final class BatteryMonitor {
             }
         } catch let error as ProviderError {
             devices = []
-            phase = .failed(error)
+            // Спящий телефон пропадает из usbmuxd, и «Обновить список» упирается
+            // в .noDevice — это обрыв связи, а не поломка. Свежие показания
+            // должны остаться на экране (план §16.1), поэтому решение о фазе
+            // принимает то же чистое правило, что и после обычного опроса.
+            phase = Self.nextPhase(current: phase,
+                                   error: error,
+                                   lastKnown: lastKnownStatus,
+                                   now: now(),
+                                   noLinkAfter: noLinkAfter,
+                                   staleLimit: staleLimit,
+                                   failures: consecutiveFailures)
         } catch {
             devices = []
         }

@@ -131,7 +131,7 @@ final class DeviceEventWatcher {
 
 /// Склеивает куски вывода помощника в целые строки: `availableData` приходит
 /// произвольными порциями и может разрезать строку пополам.
-private final class LineBuffer: @unchecked Sendable {
+final class LineBuffer: @unchecked Sendable {
     private let lock = NSLock()
     private var pending = Data()
 
