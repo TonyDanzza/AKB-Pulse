@@ -11,18 +11,23 @@ private struct Boom: Error {}
 private actor ScriptedProvider: BatteryProvider {
     private var deviceQueue: [Result<[PhoneDevice], Error>]
     private var batteryQueue: [Result<BatteryStatus, Error>]
+    private var healthQueue: [Result<BatteryHealth, Error>]
     private(set) var listCalls = 0
     private(set) var batteryCalls = 0
+    private(set) var healthCalls = 0
     private var delay: Duration = .zero
 
     init(devices: [Result<[PhoneDevice], Error>] = [.success([phone])],
-         batteries: [Result<BatteryStatus, Error>] = []) {
+         batteries: [Result<BatteryStatus, Error>] = [],
+         healths: [Result<BatteryHealth, Error>] = [.failure(ProviderError.deviceUnreachable("MON-PHONE"))]) {
         deviceQueue = devices
         batteryQueue = batteries
+        healthQueue = healths
     }
 
     func devices(_ queue: [Result<[PhoneDevice], Error>]) { deviceQueue = queue }
     func batteries(_ queue: [Result<BatteryStatus, Error>]) { batteryQueue = queue }
+    func healths(_ queue: [Result<BatteryHealth, Error>]) { healthQueue = queue }
     func setDelay(_ value: Duration) { delay = value }
 
     func listDevices() async throws -> [PhoneDevice] {
@@ -34,6 +39,11 @@ private actor ScriptedProvider: BatteryProvider {
         batteryCalls += 1
         if delay > .zero { try? await Task.sleep(for: delay) }
         return try Self.take(&batteryQueue)
+    }
+
+    func health(for device: PhoneDevice) async throws -> BatteryHealth {
+        healthCalls += 1
+        return try Self.take(&healthQueue)
     }
 
     private static func take<T>(_ queue: inout [Result<T, Error>]) throws -> T {
@@ -57,6 +67,9 @@ private func prepareDefaults() {
     defaults.set(true, forKey: Prefs.Key.repeatEveryTen)
     defaults.set(60, forKey: Prefs.Key.pollInterval)
     defaults.removeObject(forKey: Prefs.Key.selectedUDID)
+    // Здоровье живёт в UserDefaults между запусками — тестам нужен чистый лист.
+    defaults.removeObject(forKey: Prefs.Key.batteryHealth)
+    defaults.removeObject(forKey: Prefs.Key.healthAttemptedAt)
 }
 
 @MainActor
@@ -409,5 +422,130 @@ struct BatteryPhaseBoundaryTests {
     func futureTimestamp() {
         #expect(phase(age: -3600).status?.percent == 50)
         #expect(phase(age: -3600).isStale == false)
+    }
+}
+
+@MainActor
+@Suite("Здоровье батареи в мониторе", .serialized)
+struct MonitorHealthTests {
+
+    private let sample = BatteryHealth(cycleCount: 243, designCapacity: 3654,
+                                       nominalCapacity: 3609, fullChargeCapacity: 3632,
+                                       voltage: 4197, amperage: -58, timeRemaining: 1472)
+
+    private func make(_ provider: ScriptedProvider, clock: TestClock) -> BatteryMonitor {
+        prepareDefaults()
+        return BatteryMonitor(provider: provider, now: { clock.date })
+    }
+
+    private func reading(_ clock: TestClock) -> BatteryStatus {
+        BatteryStatus(percent: 74, updatedAt: clock.date)
+    }
+
+    @Test("После удачного заряда здоровье спрашивается ровно один раз")
+    func askedOnce() async {
+        let clock = TestClock()
+        let provider = ScriptedProvider(batteries: [.success(reading(clock))],
+                                        healths: [.success(sample)])
+        let monitor = make(provider, clock: clock)
+        await monitor.refresh(rediscover: true)
+        #expect(await provider.healthCalls == 1)
+        #expect(monitor.health?.cycleCount == 243)
+        #expect(monitor.health?.maximumCapacityPercent == 99)
+        // Время чтения — по часам Mac, а не то, что положил источник.
+        #expect(monitor.health?.updatedAt == clock.date)
+        #expect(Prefs.health(udid: phone.udid)?.cycleCount == 243)
+        prepareDefaults()
+    }
+
+    @Test("Через минуту здоровье заново не спрашивается")
+    func notAskedAgainSoon() async {
+        let clock = TestClock()
+        let provider = ScriptedProvider(batteries: [.success(reading(clock))],
+                                        healths: [.success(sample)])
+        let monitor = make(provider, clock: clock)
+        await monitor.refresh(rediscover: true)
+        clock.advance(60)
+        await monitor.refresh(rediscover: false)
+        #expect(await provider.healthCalls == 1)
+        prepareDefaults()
+    }
+
+    @Test("Через два часа — спрашивается снова")
+    func askedAgainAfterHours() async {
+        let clock = TestClock()
+        let provider = ScriptedProvider(batteries: [.success(reading(clock))],
+                                        healths: [.success(sample)])
+        let monitor = make(provider, clock: clock)
+        await monitor.refresh(rediscover: true)
+        clock.advance(2 * 60 * 60)
+        await monitor.refresh(rediscover: false)
+        #expect(await provider.healthCalls == 2)
+        prepareDefaults()
+    }
+
+    @Test("Неудача здоровья не трогает ни фазу, ни экран заряда")
+    func failureIsQuiet() async {
+        let clock = TestClock()
+        let status = reading(clock)
+        let provider = ScriptedProvider(batteries: [.success(status)],
+                                        healths: [.failure(ProviderError.deviceUnreachable(phone.udid))])
+        let monitor = make(provider, clock: clock)
+        await monitor.refresh(rediscover: true)
+        #expect(monitor.phase == .ready(status))
+        #expect(monitor.health == nil)
+        #expect(await provider.healthCalls == 1)
+        // Попытка записана: следующие десять минут телефон не тревожим.
+        clock.advance(60)
+        await monitor.refresh(rediscover: false)
+        #expect(await provider.healthCalls == 1)
+        prepareDefaults()
+    }
+
+    @Test("Кнопка «Обновить» спрашивает вопреки правилу раз-в-час")
+    func forcedRefresh() async {
+        let clock = TestClock()
+        let provider = ScriptedProvider(batteries: [.success(reading(clock))],
+                                        healths: [.success(sample)])
+        let monitor = make(provider, clock: clock)
+        await monitor.refresh(rediscover: true)
+        await monitor.refreshHealth()          // правило говорит «рано»
+        #expect(await provider.healthCalls == 1)
+        await monitor.refreshHealth(force: true)
+        #expect(await provider.healthCalls == 2)
+        #expect(monitor.isRefreshingHealth == false)
+        prepareDefaults()
+    }
+
+    @Test("Смена телефона подменяет здоровье на сохранённое для него")
+    func selectSwapsHealth() async {
+        let clock = TestClock()
+        let provider = ScriptedProvider(devices: [.success([older, phone])],
+                                        batteries: [.success(reading(clock))],
+                                        healths: [.success(sample)])
+        let monitor = make(provider, clock: clock)
+        var forOlder = sample
+        forOlder.cycleCount = 900
+        Prefs.setHealth(forOlder, udid: older.udid)
+
+        await monitor.refresh(rediscover: true)
+        #expect(monitor.selectedDevice == phone)
+        #expect(monitor.health?.cycleCount == 243)
+
+        monitor.select(older)
+        #expect(monitor.health?.cycleCount == 900)
+        prepareDefaults()
+        UserDefaults.standard.removeObject(forKey: Prefs.Key.selectedUDID)
+    }
+
+    @Test("Здоровье, сохранённое в прошлый запуск, видно сразу при создании монитора")
+    func restoredFromPrefs() async {
+        prepareDefaults()
+        Prefs.selectedUDID = phone.udid
+        Prefs.setHealth(sample, udid: phone.udid)
+        let monitor = BatteryMonitor(provider: ScriptedProvider())
+        #expect(monitor.health?.cycleCount == 243)
+        prepareDefaults()
+        UserDefaults.standard.removeObject(forKey: Prefs.Key.selectedUDID)
     }
 }

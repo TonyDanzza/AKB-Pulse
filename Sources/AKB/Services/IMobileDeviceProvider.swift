@@ -198,6 +198,59 @@ struct IMobileDeviceProvider: BatteryProvider {
         await resolver.confirm(udid: device.udid, ip: ip)
         return status
     }
+
+    // MARK: - Здоровье
+
+    /// Здоровье батареи через `akb-direct health` (план §6.5).
+    ///
+    /// Сначала путь через usbmuxd — он работает, пока телефон бодрствует.
+    /// Иначе прямое чтение по IP, и ровно одна попытка без окна повторов:
+    /// здоровье спрашивают сразу после удачного чтения заряда, то есть в ту
+    /// самую волну, когда телефон уже ответил.
+    func health(for device: PhoneDevice) async throws -> BatteryHealth {
+        let started = Date()
+        let akbDirect = try tool("akb-direct")
+
+        if let result = try? await ProcessRunner.run(akbDirect,
+                                                     arguments: ["health", "-", device.udid],
+                                                     timeout: timeout),
+           result.status == 0,
+           var health = IMobileDeviceOutputParser.health(result.stdout) {
+            health.source = .usbmuxd
+            log(health, path: "usbmuxd", started: started)
+            return health
+        }
+
+        guard let resolved = await resolver.resolve(udid: device.udid),
+              await PortProbe.isOpen(host: resolved.ip)
+        else { throw ProviderError.deviceUnreachable(device.udid) }
+
+        let result = try await ProcessRunner.run(akbDirect,
+                                                 arguments: ["health", resolved.ip, device.udid],
+                                                 timeout: timeout)
+        // 3 — телефон спит, 4 — сервис не отдал ответ: и то и другое обрыв связи.
+        // 6 — прошивка ответила незнакомо, читать нечего.
+        guard result.status == 0 else {
+            throw result.status == 6 ? ProviderError.parseFailure
+                                     : ProviderError.deviceUnreachable(device.udid)
+        }
+        guard var health = IMobileDeviceOutputParser.health(result.stdout) else {
+            throw ProviderError.parseFailure
+        }
+        health.source = .direct
+        await resolver.confirm(udid: device.udid, ip: resolved.ip)
+        log(health, path: "direct (\(resolved.ip))", started: started)
+        return health
+    }
+
+    private func log(_ health: BatteryHealth, path: String, started: Date) {
+        AKBLog.info(.provider, """
+            здоровье \(health.maximumCapacityPercent)% \
+            (\(health.nominalCapacity)/\(health.designCapacity) мА·ч), \
+            \(health.cycleCount) циклов, путём \(path) \
+            за \(String(format: "%.1f", Date().timeIntervalSince(started))) с
+            """)
+    }
 }
 
 /// Подставной источник для отладки и снимков экрана (`AKB_FAKE_PERCENT`).
@@ -232,6 +285,22 @@ struct FakeProvider: BatteryProvider {
         guard let toggleCharging else { return isCharging }
         let step = Int(Date().timeIntervalSince(startedAt) / toggleCharging)
         return step % 2 == 0 ? isCharging : !isCharging
+    }
+
+    /// Цифры настоящего телефона Тони — чтобы снимки экрана были похожи на правду.
+    func health(for device: PhoneDevice) async throws -> BatteryHealth {
+        if isAsleep || FakeMode.forceNoHealth {
+            throw ProviderError.deviceUnreachable(device.udid)
+        }
+        return BatteryHealth(cycleCount: 243,
+                             designCapacity: 3654,
+                             nominalCapacity: 3609,
+                             fullChargeCapacity: 3632,
+                             voltage: 4197,
+                             amperage: -58,
+                             timeRemaining: 1472,
+                             updatedAt: Date(),
+                             source: .usbmuxd)
     }
 
     func battery(for device: PhoneDevice) async throws -> BatteryStatus {

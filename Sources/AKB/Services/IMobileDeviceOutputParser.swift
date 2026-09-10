@@ -46,6 +46,42 @@ enum IMobileDeviceOutputParser {
         )
     }
 
+    /// Разбирает вывод `akb-direct health` — плоские строки `Key: value`
+    /// из записи IORegistry `AppleSmartBattery` (план §6.3).
+    ///
+    /// Возвращает nil, если нет циклов или ёмкостей: без них показывать нечего,
+    /// а гадать по неполному ответу незнакомой прошивки — хуже, чем промолчать.
+    static func health(_ text: String, now: Date = Date()) -> BatteryHealth? {
+        let kv = keyValues(text)
+        func int(_ key: String) -> Int? {
+            guard let raw = kv[key] else { return nil }
+            return Int(raw.trimmingCharacters(in: .whitespaces))
+        }
+
+        guard let cycleCount = int("CycleCount"),
+              let designCapacity = int("DesignCapacity"), designCapacity > 0,
+              let nominalCapacity = int("NominalChargeCapacity")
+        else { return nil }
+
+        // 65535 — «не знаю»: телефон так отвечает, пока не пересчитал прогноз.
+        var timeRemaining = int("TimeRemaining")
+        if let value = timeRemaining, value <= 0 || value == 65535 { timeRemaining = nil }
+
+        return BatteryHealth(
+            cycleCount: cycleCount,
+            designCapacity: designCapacity,
+            nominalCapacity: nominalCapacity,
+            fullChargeCapacity: int("FullChargeCapacity"),
+            voltage: int("Voltage"),
+            // Мгновенный ток честнее усреднённого; если его нет — берём усреднённый.
+            amperage: int("InstantAmperage") ?? int("Amperage"),
+            // Температура приходит в сотых долях градуса: 2850 → 28,5 °C.
+            temperature: int("Temperature").map { Double($0) / 100 },
+            timeRemaining: timeRemaining,
+            updatedAt: now
+        )
+    }
+
     /// Разбирает вывод `idevice_id -l` / `-n`: по одному UDID на строку.
     /// Строки с пробелами (сообщения об ошибках, «No device found.») отбрасываются.
     static func udidList(_ text: String) -> [String] {

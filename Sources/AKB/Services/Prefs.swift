@@ -27,6 +27,12 @@ enum Prefs {
         /// UDID → имя и модель, чтобы показывать спящий телефон, которого нет в usbmuxd.
         static let deviceNames = "deviceNames"
         static let deviceProductTypes = "deviceProductTypes"
+        /// UDID → последнее прочитанное здоровье батареи, JSON (план §6.4).
+        /// Оно меняется медленно, а при запуске телефон часто спит: показать
+        /// вчерашние цифры с датой честнее, чем пустое место.
+        static let batteryHealth = "batteryHealth"
+        /// UDID → когда последний раз пробовали прочитать здоровье, успешно или нет.
+        static let healthAttemptedAt = "healthAttemptedAt"
     }
 
     /// Допустимые интервалы опроса (секунды).
@@ -110,6 +116,59 @@ enum Prefs {
         set { setStringMap(newValue, Key.deviceProductTypes) }
     }
 
+    // MARK: - Здоровье батареи (фаза 6)
+
+    /// Даты как секунды с эпохи: словарь уходит в plist, и ISO-строки там ни к чему.
+    private static let healthCoders: (JSONEncoder, JSONDecoder) = {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .secondsSince1970
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .secondsSince1970
+        return (encoder, decoder)
+    }()
+
+    /// UDID → JSON-строка со здоровьем.
+    static var batteryHealth: [String: String] {
+        get { stringMap(Key.batteryHealth) }
+        set { setStringMap(newValue, Key.batteryHealth) }
+    }
+
+    static func health(udid: String) -> BatteryHealth? {
+        guard let json = batteryHealth[udid], let data = json.data(using: .utf8) else { return nil }
+        return try? healthCoders.1.decode(BatteryHealth.self, from: data)
+    }
+
+    /// nil стирает запись: пустой словарь убирает ключ целиком, как у адресов.
+    static func setHealth(_ value: BatteryHealth?, udid: String) {
+        guard let value else {
+            batteryHealth[udid] = nil
+            return
+        }
+        guard let data = try? healthCoders.0.encode(value),
+              let json = String(data: data, encoding: .utf8) else { return }
+        batteryHealth[udid] = json
+    }
+
+    /// UDID → когда последний раз стучались за здоровьем (успешно или нет).
+    static var healthAttemptedAt: [String: Double] {
+        get { UserDefaults.standard.dictionary(forKey: Key.healthAttemptedAt) as? [String: Double] ?? [:] }
+        set {
+            if newValue.isEmpty {
+                UserDefaults.standard.removeObject(forKey: Key.healthAttemptedAt)
+            } else {
+                UserDefaults.standard.set(newValue, forKey: Key.healthAttemptedAt)
+            }
+        }
+    }
+
+    static func healthAttempt(udid: String) -> Date? {
+        healthAttemptedAt[udid].map { Date(timeIntervalSince1970: $0) }
+    }
+
+    static func setHealthAttempt(_ date: Date, udid: String) {
+        healthAttemptedAt[udid] = date.timeIntervalSince1970
+    }
+
     /// Запомнить телефон, чтобы показать его, когда usbmuxd его не видит.
     static func remember(_ device: PhoneDevice) {
         deviceNames[device.udid] = device.name
@@ -163,6 +222,11 @@ enum FakeMode {
         guard let raw = ProcessInfo.processInfo.environment["AKB_FAKE_TOGGLE_CHARGING"],
               let value = TimeInterval(raw), value > 0 else { return nil }
         return value
+    }
+
+    /// Принудительно «здоровье не читается» — для снимка раздела без данных (план §6.5).
+    static var forceNoHealth: Bool {
+        IMobileDeviceOutputParser.bool(ProcessInfo.processInfo.environment["AKB_FAKE_NO_HEALTH"])
     }
 
     /// Принудительно «телефон не найден».

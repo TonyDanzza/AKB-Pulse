@@ -23,6 +23,10 @@ final class BatteryMonitor {
     private(set) var selectedDevice: PhoneDevice?
     private(set) var lastKnownStatus: BatteryStatus?
     private(set) var isRefreshing = false
+    /// Здоровье батареи выбранного телефона (план §6.6). Не «протухает» вместе
+    /// с фазой: цифры годичной свежести всё равно верны, показываем их с датой.
+    private(set) var health: BatteryHealth?
+    private(set) var isRefreshingHealth = false
 
     // MARK: - Настройки, влияющие на отображение
 
@@ -95,6 +99,12 @@ final class BatteryMonitor {
         }
         self.policy = AlertPolicy(threshold: Prefs.lowThreshold,
                                   repeatEveryTenPercent: Prefs.repeatEveryTen)
+        // Выбранного телефона ещё нет, но UDID с прошлого запуска обычно есть:
+        // раздел «Батарея» открывается заполненным, не дожидаясь ответа.
+        if let udid = Self.rememberedUDID() {
+            healthUDID = udid
+            health = Prefs.health(udid: udid)
+        }
     }
 
     // MARK: - Жизненный цикл
@@ -243,6 +253,8 @@ final class BatteryMonitor {
     func select(_ device: PhoneDevice) {
         selectedDevice = device
         Prefs.selectedUDID = device.udid
+        healthUDID = device.udid
+        health = Prefs.health(udid: device.udid)
         policy.reset()
         Task { await refresh(rediscover: false) }
     }
@@ -269,6 +281,7 @@ final class BatteryMonitor {
                 fail(with: .noDevice)
                 return
             }
+            loadHealthIfNeeded(for: device)
             let status = try await provider.battery(for: device)
             lastKnownStatus = status
             lastPollSource = status.source
@@ -276,6 +289,12 @@ final class BatteryMonitor {
             lastPollFailed = false
             phase = .ready(status)
             evaluateAlert(status, device: device)
+            // Телефон только что ответил — лучшей минуты спросить про здоровье не будет.
+            if Self.healthIsDue(health: health,
+                                lastAttempt: Prefs.healthAttempt(udid: device.udid),
+                                now: now()) {
+                await readHealth(device)
+            }
         } catch let error as ProviderError {
             AKBLog.info(.monitor, "опрос не удался: \(String(describing: error))")
             fail(with: error)
@@ -308,6 +327,67 @@ final class BatteryMonitor {
                                    failures: consecutiveFailures)
         } catch {
             devices = []
+        }
+    }
+
+    // MARK: - Здоровье батареи (план §6.6)
+
+    /// Раз в час: циклы за час не меняются, а лишний запуск помощника будит телефон.
+    static let healthInterval: TimeInterval = 60 * 60
+    /// После неудачи не долбимся каждые пять секунд — ждём десять минут.
+    static let healthRetryDelay: TimeInterval = 10 * 60
+    /// UDID, чьё здоровье сейчас в `health`: чтобы не перечитывать `UserDefaults`
+    /// на каждом опросе и не подсунуть чужие цифры после смены телефона.
+    private var healthUDID: String?
+
+    /// Чистое правило «пора ли спрашивать здоровье».
+    /// Данные должны устареть **и** прошлая попытка должна быть давно:
+    /// иначе спящий телефон получал бы запрос при каждом опросе.
+    static func healthIsDue(health: BatteryHealth?,
+                            lastAttempt: Date?,
+                            now: Date,
+                            interval: TimeInterval = healthInterval,
+                            retryDelay: TimeInterval = healthRetryDelay) -> Bool {
+        let stale = health.map { now.timeIntervalSince($0.updatedAt) >= interval } ?? true
+        let quiet = lastAttempt.map { now.timeIntervalSince($0) >= retryDelay } ?? true
+        return stale && quiet
+    }
+
+    private func loadHealthIfNeeded(for device: PhoneDevice) {
+        guard healthUDID != device.udid else { return }
+        healthUDID = device.udid
+        health = Prefs.health(udid: device.udid)
+    }
+
+    /// Кнопка «Обновить» в настройках. `force` игнорирует правило раз-в-час,
+    /// но повторный клик во время чтения ничего не запускает.
+    func refreshHealth(force: Bool = false) async {
+        guard !isRefreshingHealth, let device = selectedDevice else { return }
+        loadHealthIfNeeded(for: device)
+        guard force || Self.healthIsDue(health: health,
+                                        lastAttempt: Prefs.healthAttempt(udid: device.udid),
+                                        now: now())
+        else { return }
+        await readHealth(device)
+    }
+
+    /// Неудача здоровья не трогает ни фазу, ни счётчик осечек, ни быстрый повтор:
+    /// на экране заряда от этого не должно поменяться ничего.
+    private func readHealth(_ device: PhoneDevice) async {
+        guard !isRefreshingHealth else { return }
+        isRefreshingHealth = true
+        defer { isRefreshingHealth = false }
+        Prefs.setHealthAttempt(now(), udid: device.udid)
+        do {
+            var value = try await provider.health(for: device)
+            value.updatedAt = now()
+            health = value
+            healthUDID = device.udid
+            Prefs.setHealth(value, udid: device.udid)
+            AKBLog.info(.monitor, "здоровье: \(value.maximumCapacityPercent) %, "
+                        + "\(value.cycleCount) циклов")
+        } catch {
+            AKBLog.info(.monitor, "здоровье не прочиталось: \(String(describing: error))")
         }
     }
 
@@ -361,6 +441,15 @@ final class BatteryMonitor {
         if age < noLinkAfter { return .ready(lastKnown) }
         if age < staleLimit { return .stale(lastKnown) }
         return .failed(error)
+    }
+
+    /// UDID телефона, про который приложение будет говорить, пока живых устройств
+    /// ещё нет: явно выбранный в настройках, иначе — тот же, что выберется из
+    /// запомненных. Нужен и монитору при старте, и отчёту для поддержки.
+    nonisolated static func rememberedUDID() -> String? {
+        if let selected = Prefs.selectedUDID { return selected }
+        let remembered = Prefs.deviceNames.keys.sorted().compactMap { Prefs.cachedDevice(udid: $0) }
+        return pick(from: remembered, preferredUDID: nil)?.udid
     }
 
     /// Выбор устройства: сохранённый UDID → семейство iPhone 17 → первый найденный (план §2).

@@ -29,8 +29,20 @@ enum SupportReport {
             Помощники: \(toolsDescription())
             Интервал опроса: \(Prefs.pollInterval) с
             Порог тревоги: \(Prefs.lowThreshold)%
+            \(healthLine())
             ===============
             """
+    }
+
+    /// Здоровье батареи в шапке отчёта (план §6.9). Серийный номер батареи
+    /// сюда не попадает никогда: помощник его не печатает.
+    static func healthLine() -> String {
+        guard let udid = BatteryMonitor.rememberedUDID(), let health = Prefs.health(udid: udid) else {
+            return "здоровье: нет данных"
+        }
+        return "здоровье: \(health.maximumCapacityPercent) % "
+            + "(\(health.nominalCapacity)/\(health.designCapacity) мА·ч), "
+            + "\(health.cycleCount) циклов, обновлено \(FileLog.timestamp(health.updatedAt))"
     }
 
     /// `sysctl hw.model` без запуска процесса.

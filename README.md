@@ -6,7 +6,9 @@
 
 Маленькая утилита для macOS 26+: показывает заряд iPhone в строке меню
 (иконка и «72 %»), красит иконку красным и присылает уведомление, когда
-телефон садится ниже порога. Иконки в Dock нет.
+телефон садится ниже порога. Заодно показывает здоровье батареи —
+максимальную ёмкость и число циклов, те же цифры, что в iOS «Настройки →
+Батарея → Состояние». Иконки в Dock нет.
 
 Данные берутся по Wi-Fi через `lockdownd` — теми же утилитами
 libimobiledevice, что использует Finder. Bluetooth заряд iPhone для Mac
@@ -23,6 +25,29 @@ libimobiledevice, что использует Finder. Bluetooth заряд iPhon
 экране, но приглушается, а в окне пишется «Нет связи ▏данные 14:32».
 
 ![Строка меню](screenshots/menubar-real.png)
+
+## Здоровье батареи
+
+В окне строки меню под полосой заряда стоит строка «Здоровье 99 % ▏243 цикла»,
+а в настройках, в разделе «Батарея», те же цифры подробнее: максимальная
+ёмкость (99 % — это 3609 из 3654 мА·ч), циклы зарядки, напряжение и ток.
+
+![Окно со здоровьем](screenshots/v2/popover-health.png)
+
+Числа приходят от самого телефона: сервис `com.apple.mobile.diagnostics_relay`
+отдаёт запись IORegistry `AppleSmartBattery` по той же доверенной паре, что и
+заряд, — кабель не нужен. Проценты считаются как в iOS: текущая полная ёмкость
+относительно проектной.
+
+Здоровье меняется медленно, поэтому спрашивается раз в час, сразу после
+удачного чтения заряда; после неудачи следующая попытка не раньше чем через
+десять минут. Последние цифры сохраняются между запусками и показываются с
+датой — пока телефон спит, вчерашние 99 % честнее пустоты.
+
+Серийный номер батареи в ответе телефона есть, но приложение его не читает
+и никуда не пишет: помощник печатает только белый список полей.
+
+![Настройки: раздел «Батарея»](screenshots/v2/settings-health.png)
 
 ## Что нужно один раз сделать на телефоне
 
@@ -114,8 +139,8 @@ xcodebuild -project AKB.xcodeproj -scheme AKB -configuration Debug \
 Сборка для раздачи:
 
 ```bash
-./scripts/make-dmg.sh       # → dist/AKB-Pulse-1.2.dmg (готовый образ)
-./scripts/package.sh        # → dist/AKB-Pulse-1.2.zip (просто архив)
+./scripts/make-dmg.sh       # → dist/AKB-Pulse-1.3.dmg (готовый образ)
+./scripts/package.sh        # → dist/AKB-Pulse-1.3.zip (просто архив)
 ```
 
 Оба скрипта собирают Release. Утилиты libimobiledevice встраиваются в
@@ -139,6 +164,7 @@ otool -L build/Build/Products/Release/AKB.app/Contents/Helpers/* | grep homebrew
 | `AKB_FAKE_CHARGING=1` | к фейковому заряду добавляет «заряжается» |
 | `AKB_FAKE_NO_DEVICE=1` | «iPhone не найден» — проверить пустое состояние |
 | `AKB_FAKE_NO_TOOL=1` | «нет libimobiledevice» — проверить второе пустое состояние |
+| `AKB_FAKE_NO_HEALTH=1` | здоровье не читается — проверить раздел «Батарея» без данных |
 | `AKB_FAKE_STALE_AFTER=20` | фейковый телефон «засыпает» через 20 с — проверить «Нет связи» |
 | `AKB_FAKE_TOGGLE_CHARGING=8` | зарядка включается и выключается каждые 8 с — видно, что иконка в строке меню обновляется сама |
 
@@ -160,6 +186,8 @@ H=/Applications/AKB.app/Contents/Helpers/akb-direct
 "$H" mac <UDID>                    # 34:10:be:d8:21:09 — MAC из записи сопряжения
 "$H" addr <UDID>                   # IP, если usbmuxd сейчас видит телефон
 "$H" battery 192.168.1.11 <UDID>   # заряд напрямую по IP
+"$H" health 192.168.1.11 <UDID>    # здоровье батареи напрямую по IP
+"$H" health - <UDID>               # то же через usbmuxd, если телефон не спит
 "$H" watch                         # поток событий usbmuxd: ADD/REMOVE
 ```
 
@@ -170,6 +198,9 @@ H=/Applications/AKB.app/Contents/Helpers/akb-direct
 
 - **Телефон** — какой iPhone опрашивать, если их несколько. По умолчанию
   выбирается устройство семейства iPhone 17, иначе первое найденное.
+- **Батарея** — здоровье: максимальная ёмкость, циклы зарядки, напряжение,
+  ток и время последнего чтения. Кнопка «Обновить» спрашивает телефон сразу,
+  не дожидаясь часа.
 - **Опрос** — интервал опроса спящего iPhone: 30 с / 1 мин / 2 мин / 5 мин,
   и переключатель «показывать проценты в строке меню».
 - **Уведомления** — порог 10…50 % (по умолчанию 30 %) и повтор на каждой
@@ -204,7 +235,7 @@ AKB Pulse пишет события в `~/Library/Logs/AKB/akb.log` (ротац�
 
 ## Передать другому
 
-Собери `./scripts/make-dmg.sh` и отдай `dist/AKB-Pulse-1.2.dmg`. Ставить ничего
+Собери `./scripts/make-dmg.sh` и отдай `dist/AKB-Pulse-1.3.dmg`. Ставить ничего
 не нужно: libimobiledevice уже внутри. Получателю остаётся два шага —
 включить для своего телефона галочку Wi-Fi в Finder (окно первого запуска
 показывает, как) и при первом открытии обойти Gatekeeper, как описано выше.
@@ -223,7 +254,7 @@ OpenSSL — Apache-2.0. Библиотеки подключены динамич
 ```
 Sources/AKB/
   AKBApp.swift                    сцена Settings; строка меню — на AppKit
-  Model/                          BatteryStatus, PhoneDevice, ProductTypeMap
+  Model/                          BatteryStatus, BatteryHealth, PhoneDevice, ProductTypeMap
   Services/
     BatteryProvider.swift         протокол источника данных
     IMobileDeviceProvider.swift   idevice_id / ideviceinfo + прямой путь по IP
@@ -243,21 +274,24 @@ Sources/AKB/
     AKBLog.swift                  единая точка: os.Logger + файловый лог
     FileLog.swift                 ~/Library/Logs/AKB с ротацией (покрыт тестами)
     SupportReport.swift           сборка файла для поддержки (покрыт тестами)
+    Prefs.swift                   UserDefaults: адрес телефона и здоровье батареи
   Views/                          StatusItemController (NSStatusItem + NSPopover),
                                   MenuBarLabel (рендер иконки), StatusPopoverView,
                                   SettingsView, EmptyStateView,
-                                  OnboardingView, Hairline
+                                  OnboardingView, Hairline,
+                                  HealthFormatter (числа здоровья, покрыт тестами)
   Services/DeviceEventWatcher.swift события usbmuxd → немедленный опрос
-Helpers/akb-direct/               помощник на C: заряд по IP, MAC, адрес, события
-Tests/AKBTests/                   213 тестов, Swift Testing
+Helpers/akb-direct/               помощник на C: заряд и здоровье по IP, MAC,
+                                  адрес, события
+Tests/AKBTests/                   252 теста, Swift Testing
 ```
 
 ```
 scripts/
   dev/click-menubar.swift      клик по строке меню для снимков экрана
   bundle-libimobiledevice.sh   встраивает утилиты и dylib в бандл
-  make-dmg.sh                  Release → dist/AKB-Pulse-1.2.dmg
-  package.sh                   Release → dist/AKB-Pulse-1.2.zip
+  make-dmg.sh                  Release → dist/AKB-Pulse-1.3.dmg
+  package.sh                   Release → dist/AKB-Pulse-1.3.zip
 ```
 
 Сторонних SPM-зависимостей нет — только системные фреймворки.

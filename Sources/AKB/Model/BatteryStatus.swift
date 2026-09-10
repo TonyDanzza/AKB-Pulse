@@ -13,7 +13,8 @@ struct BatteryStatus: Sendable, Equatable, Hashable {
 
     /// Каким путём получен ответ. Косвенный признак сна телефона: через usbmuxd
     /// отвечает только бодрствующий iPhone, спящий — лишь прямым чтением по IP (план §21).
-    enum Source: String, Sendable, Equatable, Hashable {
+    /// `Codable` — чтобы путь ответа сохранялся вместе с `BatteryHealth` (план §6.2).
+    enum Source: String, Sendable, Equatable, Hashable, Codable {
         case usbmuxd
         case direct
     }

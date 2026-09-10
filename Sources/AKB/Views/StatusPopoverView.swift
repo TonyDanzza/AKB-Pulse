@@ -26,6 +26,7 @@ struct StatusPopoverView: View {
                     .padding(.bottom, 8)
                 gauge(status)
                     .padding(.bottom, 6)
+                healthRow
                 updatedRow(status)
                     .padding(.bottom, 12)
 
@@ -38,6 +39,8 @@ struct StatusPopoverView: View {
                     .padding(.bottom, 8)
                 gauge(status, stale: true)
                     .padding(.bottom, 6)
+                // Здоровье от связи не зависит: цифры верны и когда телефон спит.
+                healthRow
                 noLinkRow(status)
                     .padding(.bottom, 12)
 
@@ -168,6 +171,30 @@ struct StatusPopoverView: View {
             .tint(stale ? Color.secondary : Self.tint(for: status, threshold: monitor.threshold))
             .animation(.smooth, value: status.fraction)
             .accessibilityHidden(true)
+    }
+
+    // MARK: - 3.5. Здоровье батареи (план §6.7)
+
+    /// «Здоровье 99 % ▏243 цикла» — одна строка, только если цифры вообще есть.
+    @ViewBuilder
+    private var healthRow: some View {
+        if let health = monitor.health {
+            let percent = health.maximumCapacityPercent
+            let cycles = HealthFormatter.cycles(health.cycleCount)
+            HStack(spacing: 4) {
+                Text(String(format: L("health.capacity", "Здоровье %lld %%"), percent))
+                Hairline()
+                Text(cycles)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .padding(.bottom, 6)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(String(format: L("a11y.health",
+                                                 "Здоровье батареи %1$lld процентов, %2$@"),
+                                       percent, cycles))
+        }
     }
 
     // MARK: - 4. Время обновления
