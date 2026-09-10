@@ -956,23 +956,6 @@
         }
       }
     },
-    "settings.health.amperage": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Current"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ток"
-          }
-        }
-      }
-    },
     "settings.health.capacity": {
       "extractionState": "manual",
       "localizations": {
@@ -1041,23 +1024,6 @@
         }
       }
     },
-    "settings.health.temperature": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Temperature"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Температура"
-          }
-        }
-      }
-    },
     "settings.health.updated": {
       "extractionState": "manual",
       "localizations": {
@@ -1071,23 +1037,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Обновлено"
-          }
-        }
-      }
-    },
-    "settings.health.voltage": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Voltage"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Напряжение"
           }
         }
       }

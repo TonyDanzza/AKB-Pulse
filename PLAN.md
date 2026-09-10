@@ -461,3 +461,4 @@ AKB/
 - Новые файлы: `Model/BatteryHealth.swift`, `Views/HealthFormatter.swift` (чистое форматирование чисел с явной локалью, покрыто тестами). Плюс `IMobileDeviceOutputParser.health`, `Prefs.health/setHealth`, `BatteryProvider.health`, `BatteryMonitor.healthIsDue/refreshHealth`, строка здоровья в шапке отчёта для поддержки.
 - Проверка: `akb-direct health 192.168.1.11 <UDID>` на живом телефоне обоими путями; фейковый режим с `AKB_FAKE_NO_HEALTH=1` — раздел без данных; реальный прогон, в логе `здоровье 99% (3609/3654 мА·ч), 243 циклов, путём direct`. Тесты 213 → 252.
 - Версия по правилу §22: `MARKETING_VERSION` 1.3, `CURRENT_PROJECT_VERSION` 4, `make-dmg.sh` → `dist/AKB-Pulse-1.3.dmg`.
+- 1.3.1: напряжение и ток из настроек убраны по просьбе пользователя.

@@ -244,26 +244,6 @@ struct HealthPrefsTests {
 struct HealthFormatterTests {
 
     private let ru = Locale(identifier: "ru_RU")
-    private let en = Locale(identifier: "en_US")
-
-    @Test("Напряжение: два знака после запятой и единица по локали")
-    func voltage() {
-        #expect(HealthFormatter.voltage(4197, locale: ru) == "4,20 В")
-        #expect(HealthFormatter.voltage(4197, locale: en) == "4.20 V")
-    }
-
-    @Test("Ток: настоящий минус, а не дефис")
-    func amperage() {
-        #expect(HealthFormatter.amperage(-58, locale: ru) == "\u{2212}58 мА")
-        #expect(HealthFormatter.amperage(-58, locale: ru).contains("-") == false)
-        #expect(HealthFormatter.amperage(120, locale: ru) == "120 мА")
-    }
-
-    @Test("Температура: одна цифра после запятой, градус не отрывается от числа")
-    func temperature() {
-        // Между числом и «°C» система ставит неразрывный пробел — так и надо.
-        #expect(HealthFormatter.temperature(28.5, locale: ru) == "28,5\u{00A0}°C")
-    }
 
     @Test("Ёмкость: «3609 из 3654 мА·ч», без разделителя тысяч")
     func capacity() {

@@ -19,10 +19,10 @@ struct SettingsView: View {
     @State private var isSavingLog = false
 
     /// Высота окна настроек. Считается один раз за запуск: на MacBook без
-    /// внешнего монитора 1000 pt не влезает, окно уехало бы за нижний край.
+    /// внешнего монитора 916 pt не влезает, окно уехало бы за нижний край.
     /// 40 pt — запас на заголовок окна и поля вокруг него.
     @MainActor
-    private static let windowHeight: CGFloat = min(1000, (NSScreen.main?.visibleFrame.height ?? 1000) - 40)
+    private static let windowHeight: CGFloat = min(916, (NSScreen.main?.visibleFrame.height ?? 916) - 40)
 
     var body: some View {
         Form {
@@ -33,7 +33,7 @@ struct SettingsView: View {
             systemSection
         }
         .formStyle(.grouped)
-        // Все разделы разом занимают 1000 pt, и столько окну дают только на
+        // Все разделы разом занимают 916 pt, и столько окну дают только на
         // большом экране. Если экран ниже — окно ужимается по нему, а `Form`
         // в стиле `.grouped` прокручивается до нижней подписи (план §6.8).
         .frame(width: 460, height: Self.windowHeight)
@@ -91,9 +91,9 @@ struct SettingsView: View {
 
     // MARK: - Батарея (план §6.8)
 
-    /// Здоровье батареи: те же цифры, что в iOS «Настройки → Батарея → Состояние»,
-    /// плюс напряжение и ток. Серийного номера батареи здесь нет — помощник его
-    /// не читает вовсе.
+    /// Здоровье батареи: те же цифры, что в iOS «Настройки → Батарея → Состояние».
+    /// Напряжение, ток и температуру не показываем — они и так есть в телефоне.
+    /// Серийного номера батареи здесь нет — помощник его не читает вовсе.
     @ViewBuilder
     private var batterySection: some View {
         Section(L("settings.battery", "Батарея")) {
@@ -109,20 +109,6 @@ struct SettingsView: View {
 
                 LabeledContent(L("settings.health.cycles", "Циклы зарядки"),
                                value: HealthFormatter.integer(health.cycleCount))
-
-                if let voltage = health.voltage {
-                    LabeledContent(L("settings.health.voltage", "Напряжение"),
-                                   value: HealthFormatter.voltage(voltage))
-                }
-                if let amperage = health.amperage {
-                    LabeledContent(L("settings.health.amperage", "Ток"),
-                                   value: HealthFormatter.amperage(amperage))
-                }
-                // iPhone 17 температуру не отдаёт; строка появится, если отдаст.
-                if let temperature = health.temperature {
-                    LabeledContent(L("settings.health.temperature", "Температура"),
-                                   value: HealthFormatter.temperature(temperature))
-                }
 
                 LabeledContent(L("settings.health.updated", "Обновлено")) {
                     HStack(spacing: 8) {

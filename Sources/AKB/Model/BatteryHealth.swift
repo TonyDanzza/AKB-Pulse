@@ -18,11 +18,12 @@ struct BatteryHealth: Sendable, Equatable, Hashable, Codable {
     var nominalCapacity: Int
     /// Ещё одна оценка полной ёмкости, мА·ч (`FullChargeCapacity`).
     var fullChargeCapacity: Int?
-    /// Напряжение, мВ.
+    /// Напряжение, мВ. В интерфейсе не показывается — остаётся для лога и разбора проблем.
     var voltage: Int?
-    /// Ток, мА. Минус — разряд.
+    /// Ток, мА. Минус — разряд. В интерфейсе не показывается.
     var amperage: Int?
     /// Температура, °C. На iOS 26 телефон её не отдаёт — обычно nil.
+    /// В интерфейсе не показывается.
     var temperature: Double?
     /// Минут до разряда. nil, если телефон ответил «не знаю» (65535) или числом ≤ 0.
     var timeRemaining: Int?

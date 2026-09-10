@@ -1,6 +1,6 @@
 # AKB Pulse — заряд iPhone в строке меню macOS
 
-**Скачать:** [AKB-Pulse-1.3.dmg](https://github.com/TonyDanzza/AKB-Pulse/releases/latest/download/AKB-Pulse-1.3.dmg) — macOS 26+, Apple Silicon.
+**Скачать:** [AKB-Pulse-1.3.1.dmg](https://github.com/TonyDanzza/AKB-Pulse/releases/latest/download/AKB-Pulse-1.3.1.dmg) — macOS 26+, Apple Silicon.
 
 При первом запуске: правая кнопка → Открыть (приложение подписано без Apple Developer ID).
 
@@ -30,7 +30,7 @@ libimobiledevice, что использует Finder. Bluetooth заряд iPhon
 
 В окне строки меню под полосой заряда стоит строка «Здоровье 99 % ▏243 цикла»,
 а в настройках, в разделе «Батарея», те же цифры подробнее: максимальная
-ёмкость (99 % — это 3609 из 3654 мА·ч), циклы зарядки, напряжение и ток.
+ёмкость (99 % — это 3609 из 3654 мА·ч) и циклы зарядки.
 
 ![Окно со здоровьем](screenshots/v2/popover-health.png)
 
@@ -139,8 +139,8 @@ xcodebuild -project AKB.xcodeproj -scheme AKB -configuration Debug \
 Сборка для раздачи:
 
 ```bash
-./scripts/make-dmg.sh       # → dist/AKB-Pulse-1.3.dmg (готовый образ)
-./scripts/package.sh        # → dist/AKB-Pulse-1.3.zip (просто архив)
+./scripts/make-dmg.sh       # → dist/AKB-Pulse-1.3.1.dmg (готовый образ)
+./scripts/package.sh        # → dist/AKB-Pulse-1.3.1.zip (просто архив)
 ```
 
 Оба скрипта собирают Release. Утилиты libimobiledevice встраиваются в
@@ -198,8 +198,8 @@ H=/Applications/AKB.app/Contents/Helpers/akb-direct
 
 - **Телефон** — какой iPhone опрашивать, если их несколько. По умолчанию
   выбирается устройство семейства iPhone 17, иначе первое найденное.
-- **Батарея** — здоровье: максимальная ёмкость, циклы зарядки, напряжение,
-  ток и время последнего чтения. Кнопка «Обновить» спрашивает телефон сразу,
+- **Батарея** — здоровье: максимальная ёмкость, циклы зарядки и время
+  последнего чтения. Кнопка «Обновить» спрашивает телефон сразу,
   не дожидаясь часа.
 - **Опрос** — интервал опроса спящего iPhone: 30 с / 1 мин / 2 мин / 5 мин,
   и переключатель «показывать проценты в строке меню».
@@ -235,7 +235,7 @@ AKB Pulse пишет события в `~/Library/Logs/AKB/akb.log` (ротац�
 
 ## Передать другому
 
-Собери `./scripts/make-dmg.sh` и отдай `dist/AKB-Pulse-1.3.dmg`. Ставить ничего
+Собери `./scripts/make-dmg.sh` и отдай `dist/AKB-Pulse-1.3.1.dmg`. Ставить ничего
 не нужно: libimobiledevice уже внутри. Получателю остаётся два шага —
 включить для своего телефона галочку Wi-Fi в Finder (окно первого запуска
 показывает, как) и при первом открытии обойти Gatekeeper, как описано выше.
@@ -283,15 +283,15 @@ Sources/AKB/
   Services/DeviceEventWatcher.swift события usbmuxd → немедленный опрос
 Helpers/akb-direct/               помощник на C: заряд и здоровье по IP, MAC,
                                   адрес, события
-Tests/AKBTests/                   252 теста, Swift Testing
+Tests/AKBTests/                   249 тестов, Swift Testing
 ```
 
 ```
 scripts/
   dev/click-menubar.swift      клик по строке меню для снимков экрана
   bundle-libimobiledevice.sh   встраивает утилиты и dylib в бандл
-  make-dmg.sh                  Release → dist/AKB-Pulse-1.3.dmg
-  package.sh                   Release → dist/AKB-Pulse-1.3.zip
+  make-dmg.sh                  Release → dist/AKB-Pulse-1.3.1.dmg
+  package.sh                   Release → dist/AKB-Pulse-1.3.1.zip
 ```
 
 Сторонних SPM-зависимостей нет — только системные фреймворки.
