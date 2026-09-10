@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-@testable import AKB
 
 /// Настоящий вывод `akb-direct health` с телефона Тони (iPhone 17, iOS 26).
 private let realOutput = """

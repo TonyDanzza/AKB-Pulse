@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-@testable import AKB
 
 /// Склейка кусков вывода `akb-direct watch` в строки. Для теста `LineBuffer`
 /// должен быть виден внутри модуля (не `private`).

@@ -285,6 +285,7 @@ Sources/AKB/
   Model/                          BatteryStatus, BatteryHealth, PhoneDevice, ProductTypeMap
   Services/
     BatteryProvider.swift         протокол источника данных
+    ProviderError.swift           ошибки источника и их тексты для UI
     IMobileDeviceProvider.swift   idevice_id / ideviceinfo + прямой путь по IP
     IMobileDeviceOutputParser.swift  чистый парсер (покрыт тестами)
     ProcessRunner.swift           Process вне главного потока, таймаут 10 с
@@ -293,8 +294,10 @@ Sources/AKB/
     ARPTable.swift                разбор `arp -an` и та же таблица через sysctl
     HostnameResolver.swift        getaddrinfo/getnameinfo без внешних процессов
     BonjourHostname.swift         имя телефона по MAC из `_apple-mobdev2._tcp`
+    NetworkInterfaces.swift       есть ли у Mac живая сеть IPv4
     PortProbe.swift               стук в порт 62078 на секунду (предпроверка)
     RetryWindow.swift             окно повторов 40 с с предпроверкой (покрыто тестами)
+    DeviceEventWatcher.swift      события usbmuxd → немедленный опрос
     BatteryMonitor.swift          @Observable состояние и таймер опроса
     AlertPolicy.swift             когда слать уведомление (покрыто тестами)
     ChargeDonePolicy.swift        когда сказать «отключи от зарядки» (покрыто тестами)
@@ -304,20 +307,26 @@ Sources/AKB/
     FileLog.swift                 ~/Library/Logs/AKB с ротацией (покрыт тестами)
     SupportReport.swift           сборка файла для поддержки (покрыт тестами)
     Prefs.swift                   UserDefaults: адрес телефона и здоровье батареи
-  Views/                          StatusItemController (NSStatusItem + NSPopover),
-                                  MenuBarLabel (рендер иконки), StatusPopoverView,
-                                  SettingsView, EmptyStateView,
-                                  OnboardingView, Hairline,
-                                  HealthFormatter (числа здоровья, покрыт тестами)
-  Services/DeviceEventWatcher.swift события usbmuxd → немедленный опрос
+  Views/
+    StatusItemController.swift    строка меню на AppKit: NSStatusItem + NSPopover
+    MenuBarLabel.swift            рендер иконки строки меню
+    StatusPopoverView.swift       содержимое popover
+    SettingsView.swift            сцена настроек
+    EmptyStateView.swift          пустые состояния popover
+    OnboardingView.swift          окно первого запуска
+    Hairline.swift                тонкая вертикальная черта-разделитель
+    SymbolName.swift              есть ли такой SF Symbol в системе
+    Localization.swift            обёртка L(ключ, текст) над String(localized:)
+    HealthFormatter.swift         числа здоровья (покрыт тестами)
 Helpers/akb-direct/               помощник на C: заряд и здоровье по IP, MAC,
                                   адрес, события
-Tests/AKBTests/                   274 теста, Swift Testing
+Tests/AKBTests/                   276 тестов, Swift Testing
 ```
 
 ```
 scripts/
-  dev/click-menubar.swift      клик по строке меню для снимков экрана
+  dev/click-menubar.swift      клик по строке меню для снимков экрана;
+                               если запущено несколько копий — `--pid`
   bundle-libimobiledevice.sh   встраивает утилиты и dylib в бандл
   make-dmg.sh                  Release → dist/AKB-Pulse-1.4.1.dmg
   package.sh                   Release → dist/AKB-Pulse-1.4.1.zip

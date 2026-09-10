@@ -104,6 +104,8 @@ targets:
       - path: Tests/AKBTests
       # Тестируемая часть приложения компилируется прямо в бандл тестов:
       # так тестам не нужен host-приложение, которое поднимает строку меню.
+      # Поэтому в тестах нет и `@testable import AKB`: модуля AKB на чистом
+      # DerivedData ещё нет, и импорт ронял `xcodebuild test` без прогрева `build`.
       - path: Sources/AKB/Model
       - path: Sources/AKB/Services
       # Чистое форматирование чисел здоровья живёт в Views, но вида в себе не

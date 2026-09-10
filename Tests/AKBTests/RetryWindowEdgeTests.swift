@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-@testable import AKB
 
 private final class StepClock: @unchecked Sendable {
     private let lock = NSLock()

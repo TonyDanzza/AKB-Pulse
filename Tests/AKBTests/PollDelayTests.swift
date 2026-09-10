@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-@testable import AKB
 
 @MainActor
 @Suite("Пауза до следующего опроса")

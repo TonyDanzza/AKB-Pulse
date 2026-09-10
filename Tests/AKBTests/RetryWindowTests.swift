@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-@testable import AKB
 
 /// Ненастоящие часы: «сон» просто двигает стрелки, поэтому тест окна 40 с идёт мгновенно.
 private final class FakeClock: @unchecked Sendable {

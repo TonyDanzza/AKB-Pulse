@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-@testable import AKB
 
 @Suite("Файловый лог: края")
 struct FileLogEdgeTests {

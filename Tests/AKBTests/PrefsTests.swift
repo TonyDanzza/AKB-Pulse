@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-@testable import AKB
 
 @Suite("Память о телефоне в UserDefaults", .serialized)
 struct PrefsTests {

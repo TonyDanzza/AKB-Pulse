@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-@testable import AKB
 
 private let phone = PhoneDevice(udid: "MON-PHONE", name: "iPhone (Тони)", productType: "iPhone18,3", transport: .wifi)
 private let older = PhoneDevice(udid: "MON-OLDER", name: "Старый", productType: "iPhone15,4", transport: .usb)

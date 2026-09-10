@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-@testable import AKB
 
 private func status(_ percent: Int, ageMinutes: Double, now: Date) -> BatteryStatus {
     BatteryStatus(percent: percent,

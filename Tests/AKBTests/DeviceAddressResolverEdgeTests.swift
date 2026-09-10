@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-@testable import AKB
 
 // Свои заглушки (одноимённые в DeviceAddressResolverTests — private для того файла).
 

@@ -42,8 +42,6 @@ enum HealthFormatter {
         formatter.usesGroupingSeparator = false
         formatter.minimumFractionDigits = fractionDigits
         formatter.maximumFractionDigits = fractionDigits
-        // CLDR по умолчанию даёт дефис; для отрицательных чисел нужен настоящий минус.
-        formatter.minusSign = "\u{2212}"
         return formatter
     }
 }

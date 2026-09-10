@@ -1,7 +1,6 @@
 import Darwin
 import Foundation
 import Testing
-@testable import AKB
 
 /// Слушающий сокет на 127.0.0.1 со случайным портом.
 private func listenOnLoopback() -> (fd: Int32, port: UInt16)? {

@@ -1,7 +1,6 @@
 import Darwin
 import Foundation
 import Testing
-@testable import AKB
 
 // Синтетический дамп маршрутов: те же байты, что отдаёт sysctl(CTL_NET, PF_ROUTE),
 // но собранные руками — так разбор проверяется без зависимости от сети машины.

@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-@testable import AKB
 
 /// Настоящие процессы: короткие системные утилиты из /bin и /usr/bin.
 @Suite("Запуск внешних процессов")

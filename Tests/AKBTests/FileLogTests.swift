@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-@testable import AKB
 
 /// Файловый лог и отчёт для поддержки (план §19.3).
 @Suite("Файловый лог")

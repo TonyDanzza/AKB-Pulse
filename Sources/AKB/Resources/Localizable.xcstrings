@@ -939,23 +939,6 @@
         }
       }
     },
-    "settings.about": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "About"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "О программе"
-          }
-        }
-      }
-    },
     "settings.battery": {
       "extractionState": "manual",
       "localizations": {
@@ -1156,23 +1139,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Запускать при входе"
-          }
-        }
-      }
-    },
-    "settings.licenses": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "libimobiledevice licenses live in Contents/Resources/Licenses inside the app."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Лицензии libimobiledevice — в Contents/Resources/Licenses внутри приложения."
           }
         }
       }

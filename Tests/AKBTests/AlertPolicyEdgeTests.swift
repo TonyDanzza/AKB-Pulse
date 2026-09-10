@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-@testable import AKB
 
 /// Крайние случаи политики уведомлений (дополняет AlertPolicyTests).
 @Suite("Политика уведомлений: края")
