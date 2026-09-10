@@ -73,7 +73,13 @@ enum ProcessRunner {
 
                 if finished.wait(timeout: .now() + timeout) == .timedOut {
                     process.terminate()
-                    _ = finished.wait(timeout: .now() + 2)
+                    // SIGTERM можно игнорировать: такой процесс переживёт таймаут,
+                    // удержит наши концы пайпов и оставит два чтения висеть навсегда.
+                    // Поэтому добиваем (план §1).
+                    if finished.wait(timeout: .now() + 1) == .timedOut {
+                        kill(process.processIdentifier, SIGKILL)
+                        _ = finished.wait(timeout: .now() + 2)
+                    }
                     _ = readers.wait(timeout: .now() + 2)
                     continuation.resume(throwing: ProviderError.timeout)
                     return

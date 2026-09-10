@@ -57,6 +57,16 @@ private func message(_ addresses: [[UInt8]], addrs: Int32 = 0x3, msglen: Int? = 
     return headerBytes + padded
 }
 
+/// `sockaddr_dl`, который объявляет длину 8 (ни имени, ни адреса), но занимает
+/// все шестнадцать оставшихся байт сообщения — так кончается настоящий дамп.
+private func shortLink() -> [UInt8] {
+    var bytes = [UInt8](repeating: 0, count: 16)
+    bytes[0] = 8                       // sdl_len
+    bytes[1] = UInt8(AF_LINK)
+    bytes[4] = 6                       // IFT_ETHER, sdl_nlen и sdl_alen нулевые
+    return bytes
+}
+
 private let phoneMAC: [UInt8] = [0x34, 0x10, 0xbe, 0xd8, 0x21, 0x09]
 
 @Suite("Разбор дампа маршрутов")
@@ -120,6 +130,25 @@ struct RouteDumpTests {
     func netmaskWithoutGateway() {
         let dump = message([inet("192.168.1.0"), inet("255.255.255.0")], addrs: 0x5)
         #expect(ARPTable.parseRouteDump(dump).isEmpty)
+    }
+
+    @Test("Короткий sockaddr_dl в конце буфера не уводит чтение за границу")
+    func shortLinkAtBufferEnd() {
+        // Буфер кончается ровно на этом адресе: чтение sockaddr_dl целиком
+        // (20 байт) ушло бы за его конец.
+        let dump = message([inet("192.168.1.11"), shortLink()])
+        #expect(ARPTable.parseRouteDump(dump).isEmpty)
+    }
+
+    @Test("MAC не берётся за границей своего сообщения")
+    func macNotStolenFromNextMessage() {
+        // Первому сообщению отдано ровно 16 байт под sockaddr_dl, а тот объявляет
+        // длину 20 и alen 6: настоящие байты MAC лежат уже в следующей записи.
+        let truncated = Array(link(mac: phoneMAC).prefix(16))
+        let dump = message([inet("192.168.1.11"), truncated])
+            + message([inet("192.168.1.1"), link(mac: [1, 2, 3, 4, 5, 6])])
+        let table = ARPTable.parseRouteDump(dump)
+        #expect(table == ["01:02:03:04:05:06": "192.168.1.1"])
     }
 
     @Test("Шлюз идёт после маски, если биты так говорят")

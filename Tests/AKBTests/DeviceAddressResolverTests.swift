@@ -76,11 +76,14 @@ struct DeviceAddressResolverTests {
                               cache: MemoryCache,
                               names: FakeNames = FakeNames(),
                               table: [String: String] = [:],
+                              hasNetwork: @escaping @Sendable () -> Bool = { true },
                               now: @escaping @Sendable () -> Date = { Date() }) -> DeviceAddressResolver {
         DeviceAddressResolver(executor: executor,
                               cache: cache,
                               names: names,
                               systemTable: { table },
+                              // Проверка не должна зависеть от того, есть ли сеть у машины.
+                              hasNetwork: hasNetwork,
                               now: now)
     }
 
@@ -145,7 +148,7 @@ struct DeviceAddressResolverTests {
             "akb-direct mac UDID": ok("34:10:be:d8:21:09"),
             "/usr/sbin/arp -an": ok("")
         ])
-        let resolver = makeResolver(executor, cache: MemoryCache())
+        let resolver = makeResolver(executor, cache: MemoryCache(), hasNetwork: { true })
         #expect(await resolver.resolve(udid: "UDID") == nil)
         #expect(Prefs.localNetworkBlocked)
         Prefs.localNetworkBlocked = false

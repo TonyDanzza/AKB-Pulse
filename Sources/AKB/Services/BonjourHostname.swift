@@ -41,7 +41,9 @@ enum BonjourHostname {
 
         func start(timeout: TimeInterval) {
             queue.async { [self] in
-                let context = Unmanaged.passUnretained(self).toOpaque()
+                // Объект должен жить, пока dnssd может позвать обратный вызов:
+                // ссылку отдаёт `finish`, а он выполняется ровно один раз (план §13).
+                let context = Unmanaged.passRetained(self).toOpaque()
                 var ref: DNSServiceRef?
                 let status = DNSServiceBrowse(&ref, 0, 0, BonjourHostname.serviceType, nil,
                                               BonjourHostname.browseReply, context)
@@ -56,6 +58,7 @@ enum BonjourHostname {
         func found(name: String, type: String, domain: String, interface: UInt32) {
             guard continuation != nil, resolve == nil, name.lowercased().hasPrefix(mac) else { return }
             var ref: DNSServiceRef?
+            // Тот же объект, что и в браузере: второй сильной ссылки не нужно.
             let context = Unmanaged.passUnretained(self).toOpaque()
             let status = DNSServiceResolve(&ref, 0, interface, name, type, domain,
                                                BonjourHostname.resolveReply, context)
@@ -75,6 +78,9 @@ enum BonjourHostname {
                 browse = nil
                 resolve = nil
             }
+            // Ссылка из `start` больше не нужна: замыкание выше держит объект
+            // сильно до самого DNSServiceRefDeallocate.
+            Unmanaged.passUnretained(self).release()
             pending.resume(returning: hostname)
         }
     }

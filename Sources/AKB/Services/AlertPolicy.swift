@@ -54,4 +54,13 @@ struct AlertPolicy: Sendable, Equatable {
 
     /// Полный сброс (например, при смене телефона или порога в настройках).
     mutating func reset() { lastFiredStep = nil }
+
+    /// Настройки изменились. Пока порог тот же, взвод сохраняется: смена интервала
+    /// опроса или галочки повторов — не повод слать второе уведомление про тот же
+    /// заряд (план §4). Другой порог — ступени другие, политика взводится заново.
+    func reconfigured(threshold: Int, repeatEveryTenPercent: Bool) -> AlertPolicy {
+        AlertPolicy(threshold: threshold,
+                    repeatEveryTenPercent: repeatEveryTenPercent,
+                    lastFiredStep: threshold == self.threshold ? lastFiredStep : nil)
+    }
 }

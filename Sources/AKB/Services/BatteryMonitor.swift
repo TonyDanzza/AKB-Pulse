@@ -232,8 +232,10 @@ final class BatteryMonitor {
 
     /// Применяет изменения настроек уведомлений/порога.
     func settingsChanged() {
-        policy = AlertPolicy(threshold: Prefs.lowThreshold,
-                             repeatEveryTenPercent: Prefs.repeatEveryTen)
+        // Взвод переносится, если порог не менялся: иначе тот же заряд даёт
+        // второе уведомление от одной смены интервала опроса (план §4).
+        policy = policy.reconfigured(threshold: Prefs.lowThreshold,
+                                     repeatEveryTenPercent: Prefs.repeatEveryTen)
         scheduleTimer()
         Task { await refresh(rediscover: false) }
     }
@@ -362,7 +364,7 @@ final class BatteryMonitor {
     }
 
     /// Выбор устройства: сохранённый UDID → семейство iPhone 17 → первый найденный (план §2).
-    static func pick(from devices: [PhoneDevice], preferredUDID: String?) -> PhoneDevice? {
+    nonisolated static func pick(from devices: [PhoneDevice], preferredUDID: String?) -> PhoneDevice? {
         if let preferredUDID, let saved = devices.first(where: { $0.udid == preferredUDID }) {
             return saved
         }
@@ -375,8 +377,8 @@ final class BatteryMonitor {
             return
         }
         if policy.threshold != Prefs.lowThreshold || policy.repeatEveryTenPercent != Prefs.repeatEveryTen {
-            policy = AlertPolicy(threshold: Prefs.lowThreshold,
-                                 repeatEveryTenPercent: Prefs.repeatEveryTen)
+            policy = policy.reconfigured(threshold: Prefs.lowThreshold,
+                                         repeatEveryTenPercent: Prefs.repeatEveryTen)
         }
         if policy.evaluate(status) {
             NotificationService.shared.postLowBattery(deviceName: device.name, percent: status.percent)

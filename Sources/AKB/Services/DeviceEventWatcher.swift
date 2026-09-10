@@ -97,6 +97,12 @@ final class DeviceEventWatcher {
         }
 
         output.fileHandleForReading.readabilityHandler = nil
+        // Помощник мог успеть написать что-то перед смертью (например, REMOVE):
+        // процесс уже мёртв, EOF гарантирован — дочитываем хвост (план §5).
+        let rest = output.fileHandleForReading.readDataToEndOfFile()
+        if !rest.isEmpty {
+            for line in buffer.append(rest) { handle(line) }
+        }
         if self.process === process { self.process = nil }
         return true
     }

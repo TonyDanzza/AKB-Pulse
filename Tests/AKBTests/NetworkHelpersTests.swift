@@ -97,6 +97,17 @@ struct HostnameResolverTests {
     }
 }
 
+@Suite("Сетевые интерфейсы")
+struct NetworkInterfacesTests {
+
+    @Test("Опрос интерфейсов не падает и отвечает Bool")
+    func doesNotCrash() {
+        // Что именно ответит, зависит от машины: важно, что ответит.
+        let answer = NetworkInterfaces.hasActiveIPv4()
+        #expect(answer == true || answer == false)
+    }
+}
+
 @Suite("Поиск утилит")
 struct ToolLocatorTests {
 

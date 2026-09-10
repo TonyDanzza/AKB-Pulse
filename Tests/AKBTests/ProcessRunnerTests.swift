@@ -33,6 +33,17 @@ struct ProcessRunnerTests {
         #expect(elapsed < .seconds(5))
     }
 
+    @Test("Процесс, игнорирующий SIGTERM, добивается сигналом KILL")
+    func ignoredTermGetsKilled() async {
+        let started = ContinuousClock.now
+        // `trap '' TERM` ставит SIG_IGN, а он переживает exec: sleep не умрёт
+        // от terminate() и уйдёт только по SIGKILL (план §1).
+        await #expect(throws: ProviderError.timeout) {
+            _ = try await ProcessRunner.run(sh, arguments: ["-c", "trap '' TERM; exec sleep 30"], timeout: 0.3)
+        }
+        #expect(ContinuousClock.now - started < .seconds(3))
+    }
+
     @Test("Несуществующий исполняемый файл — .toolNotFound")
     func missingExecutable() async {
         await #expect(throws: ProviderError.toolNotFound) {

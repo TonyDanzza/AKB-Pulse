@@ -112,26 +112,33 @@ enum ARPTable {
                 guard length >= headerSize, offset + length <= raw.count else { break }
 
                 var cursor = offset + headerSize
+                // Всё читаем байтами и не выходим за границу текущего сообщения:
+                // адрес может быть короче своей структуры (`sockaddr_dl` с длиной 8),
+                // и загрузка её целиком ушла бы за конец буфера (план §2).
+                let limit = offset + length
                 var ip: String?
                 var mac: String?
                 for bit in 0..<8 where header.rtm_addrs & (1 << bit) != 0 {
-                    guard cursor + MemoryLayout<sockaddr>.size <= offset + length else { break }
-                    let generic = raw.loadUnaligned(fromByteOffset: cursor, as: sockaddr.self)
-                    if bit == 0, generic.sa_family == sa_family_t(AF_INET) {
-                        let inet = raw.loadUnaligned(fromByteOffset: cursor, as: sockaddr_in.self)
-                        ip = ipv4String(inet.sin_addr)
+                    guard cursor + 2 <= limit else { break }
+                    let saLen = Int(raw[cursor])
+                    let family = raw[cursor + 1]
+                    guard saLen > 0, cursor + saLen <= limit else { break }
+                    if bit == 0, family == UInt8(AF_INET), saLen >= 8 {
+                        // sin_addr лежит на четвёртом байте: len, family, port(2), addr(4).
+                        ip = (0..<4).map { String(raw[cursor + 4 + $0]) }.joined(separator: ".")
                     }
-                    if bit == 1, generic.sa_family == sa_family_t(AF_LINK) {
-                        let link = raw.loadUnaligned(fromByteOffset: cursor, as: sockaddr_dl.self)
+                    if bit == 1, family == UInt8(AF_LINK), saLen >= 8 {
+                        let nlen = Int(raw[cursor + 5])
+                        let alen = Int(raw[cursor + 6])
                         // sdl_data начинается на восьмом байте: сперва имя интерфейса, затем адрес.
-                        let macOffset = cursor + 8 + Int(link.sdl_nlen)
-                        if link.sdl_alen == 6, macOffset + 6 <= raw.count {
+                        let macOffset = cursor + 8 + nlen
+                        if alen == 6, macOffset + 6 <= limit {
                             mac = (0..<6)
                                 .map { String(format: "%02x", raw[macOffset + $0]) }
                                 .joined(separator: ":")
                         }
                     }
-                    cursor += roundup(Int(generic.sa_len))
+                    cursor += roundup(saLen)
                 }
                 if let ip, let mac, isIPv4(ip), table[mac] == nil { table[mac] = ip }
                 offset += length
@@ -145,10 +152,5 @@ enum ARPTable {
         let step = MemoryLayout<UInt32>.size
         guard length > 0 else { return step }
         return 1 + ((length - 1) | (step - 1))
-    }
-
-    private static func ipv4String(_ address: in_addr) -> String {
-        let value = address.s_addr.bigEndian
-        return "\((value >> 24) & 0xff).\((value >> 16) & 0xff).\((value >> 8) & 0xff).\(value & 0xff)"
     }
 }

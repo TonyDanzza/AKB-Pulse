@@ -17,6 +17,7 @@
 // (телефон спит/недоступен), 4 GetValue не удался, 5 не найдено.
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <string.h>
 #include <stdint.h>
 #include <arpa/inet.h>
@@ -82,26 +83,30 @@ static int mode_battery(const char *ip, const char *udid, const char *domain) {
     if (!dev) { free(sa); return 4; }
     dev->udid = strdup(udid);
     dev->conn_type = CONNECTION_NETWORK;
-    dev->conn_data = sa;
+    dev->conn_data = sa;   // дальше sa принадлежит dev и освобождается один раз
 
+    // Освобождаем всё на любом пути: общий выход `out` (план §11).
+    int rc = 0;
     lockdownd_client_t client = NULL;
+    plist_t val = NULL;
+    plist_dict_iter it = NULL;
+    char *key = NULL;
+    plist_t node = NULL;
+
     lockdownd_error_t lerr =
         lockdownd_client_new_with_handshake((idevice_t)dev, &client, "AKB");
     if (lerr != LOCKDOWN_E_SUCCESS) {
         fprintf(stderr, "lockdown handshake failed: %d\n", lerr);
-        return 3;
+        rc = 3;
+        goto out;
     }
-    plist_t val = NULL;
     lerr = lockdownd_get_value(client, domain, NULL, &val);
     if (lerr != LOCKDOWN_E_SUCCESS || !val) {
         fprintf(stderr, "get_value failed: %d\n", lerr);
-        lockdownd_client_free(client);
-        return 4;
+        rc = 4;
+        goto out;
     }
-    plist_dict_iter it = NULL;
     plist_dict_new_iter(val, &it);
-    char *key = NULL;
-    plist_t node = NULL;
     while (1) {
         plist_dict_next_item(val, it, &key, &node);
         if (!key) break;
@@ -109,10 +114,15 @@ static int mode_battery(const char *ip, const char *udid, const char *domain) {
         free(key);
         key = NULL;
     }
+out:
     free(it);
-    plist_free(val);
-    lockdownd_client_free(client);
-    return 0;
+    if (val) plist_free(val);
+    // Клиент держит idevice_t, поэтому уходит первым.
+    if (client) lockdownd_client_free(client);
+    free(dev->udid);
+    free(dev->conn_data);
+    free(dev);
+    return rc;
 }
 
 // --- mac ---------------------------------------------------------------------
@@ -227,7 +237,13 @@ static int mode_watch(void) {
     // уйдёт вместе с ним, не оставшись висеть сиротой.
     char buffer[64];
     ssize_t n;
-    while ((n = read(STDIN_FILENO, buffer, sizeof(buffer))) > 0) { }
+    for (;;) {
+        n = read(STDIN_FILENO, buffer, sizeof(buffer));
+        if (n > 0) continue;
+        // Сигнал прерывает read, но труба цела — это не повод уходить (план §10).
+        if (n < 0 && errno == EINTR) continue;
+        break;
+    }
     usbmuxd_events_unsubscribe(context);
     return 0;
 }

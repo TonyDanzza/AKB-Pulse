@@ -83,6 +83,27 @@ struct PrefsTests {
         #expect(cache.mac(for: udid) == "34:10:be:d8:21:09")
     }
 
+    @Test("Запомненных телефонов несколько — берётся семейство iPhone 17, не первый по UDID")
+    func cachedDevicePicksIPhone17Family() {
+        let savedNames = Prefs.deviceNames
+        let savedTypes = Prefs.deviceProductTypes
+        let savedUDID = Prefs.selectedUDID
+        defer {
+            Prefs.deviceNames = savedNames
+            Prefs.deviceProductTypes = savedTypes
+            Prefs.selectedUDID = savedUDID
+        }
+        Prefs.deviceNames = [:]
+        Prefs.deviceProductTypes = [:]
+        Prefs.selectedUDID = nil
+        Prefs.remember(PhoneDevice(udid: "A-OLD", name: "Старый", productType: "iPhone15,4", transport: .usb))
+        Prefs.remember(PhoneDevice(udid: "B-NEW", name: "Новый", productType: "iPhone18,3", transport: .wifi))
+        // Без выбранного телефона побеждает не «A» по алфавиту, а iPhone 17 (план §6).
+        #expect(IMobileDeviceProvider().cachedDevice()?.productType == "iPhone18,3")
+        Prefs.selectedUDID = "A-OLD"
+        #expect(IMobileDeviceProvider().cachedDevice()?.udid == "A-OLD")
+    }
+
     @Test("Допустимые интервалы опроса")
     func pollIntervals() {
         #expect(Prefs.pollIntervals == [30, 60, 120, 300])

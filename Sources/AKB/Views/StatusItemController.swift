@@ -17,6 +17,10 @@ final class StatusItemController {
     private let popover = NSPopover()
     private var lastContent: MenuBarLabelRenderer.Content?
     private var safetyTimer: Timer?
+    /// Порог и «показывать проценты» лежат в `UserDefaults`, а не в `@Observable`
+    /// (план §8): без этой подписки смена настройки доезжала бы до строки меню
+    /// только страховочным таймером, до 30 с.
+    private var defaultsObserver: NSObjectProtocol?
 
     /// Как часто страховочный таймер сверяет нарисованное с настоящим.
     static let safetyInterval: TimeInterval = 30
@@ -46,16 +50,29 @@ final class StatusItemController {
         render()
         trackChanges()
 
-        let timer = Timer.scheduledTimer(withTimeInterval: Self.safetyInterval, repeats: true) { _ in
-            MainActor.assumeIsolated { self.render() }
+        let timer = Timer.scheduledTimer(withTimeInterval: Self.safetyInterval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.render() }
         }
         timer.tolerance = 5
         safetyTimer = timer
+
+        defaultsObserver = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            // `render()` сверяет содержимое с нарисованным, лишних перерисовок не будет.
+            MainActor.assumeIsolated { self?.render() }
+        }
     }
 
     func stop() {
         safetyTimer?.invalidate()
         safetyTimer = nil
+        if let defaultsObserver {
+            NotificationCenter.default.removeObserver(defaultsObserver)
+            self.defaultsObserver = nil
+        }
         NSStatusBar.system.removeStatusItem(statusItem)
     }
 

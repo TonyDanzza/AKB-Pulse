@@ -85,6 +85,9 @@ actor DeviceAddressResolver {
     private let cache: AddressCache
     private let names: HostnameResolving
     private let systemTable: @Sendable () -> [String: String]
+    /// Есть ли вообще сеть: без неё пустая таблица ARP ничего не говорит
+    /// о разрешении на локальную сеть (план §3).
+    private let hasNetwork: @Sendable () -> Bool
     private let now: @Sendable () -> Date
     private let timeout: TimeInterval
     /// Когда последний раз искали имя телефона в Bonjour: поиск ждёт волну
@@ -95,12 +98,14 @@ actor DeviceAddressResolver {
          cache: AddressCache = PrefsAddressCache(),
          names: HostnameResolving = SystemHostnameResolver(),
          systemTable: @escaping @Sendable () -> [String: String] = { ARPTable.systemTable() },
+         hasNetwork: @escaping @Sendable () -> Bool = { NetworkInterfaces.hasActiveIPv4() },
          now: @escaping @Sendable () -> Date = { Date() },
          timeout: TimeInterval = 8) {
         self.executor = executor
         self.cache = cache
         self.names = names
         self.systemTable = systemTable
+        self.hasNetwork = hasNetwork
         self.now = now
         self.timeout = timeout
     }
@@ -214,11 +219,17 @@ actor DeviceAddressResolver {
             table = systemTable()
             AKBLog.info(.resolver, "таблица из sysctl: записей \(table.count)")
             if table.isEmpty {
-                Prefs.localNetworkBlocked = true
-                AKBLog.info(.resolver, """
-                    таблица ARP пуста — похоже, приложению не разрешён доступ \
-                    к локальной сети (Системные настройки → Конфиденциальность → Локальная сеть)
-                    """)
+                // Без сети таблица пуста у кого угодно — это не запрет (план §3).
+                let networkUp = hasNetwork()
+                Prefs.localNetworkBlocked = networkUp
+                if networkUp {
+                    AKBLog.info(.resolver, """
+                        таблица ARP пуста — похоже, приложению не разрешён доступ \
+                        к локальной сети (Системные настройки → Конфиденциальность → Локальная сеть)
+                        """)
+                } else {
+                    AKBLog.info(.resolver, "таблица ARP пуста, но и сети нет ни на одном интерфейсе")
+                }
                 return nil
             }
         }
@@ -288,7 +299,9 @@ actor DeviceAddressResolver {
     /// объявления `_apple-mobdev2._tcp`. Этот поиск ждёт волну до шести секунд,
     /// так что повторяем его не чаще раза в десять минут.
     private func learnHostname(udid: String, ip: String, viaBonjour: Bool = false) async {
-        guard cache.hostname(for: udid) == nil else { return }
+        // Пустая строка — это не имя: её `addressFromHostname` всё равно отвергнет,
+        // так что учим заново (план §9).
+        guard (cache.hostname(for: udid) ?? "").isEmpty else { return }
         if let host = await names.hostname(forAddress: ip, timeout: 5) {
             return store(hostname: host, udid: udid)
         }

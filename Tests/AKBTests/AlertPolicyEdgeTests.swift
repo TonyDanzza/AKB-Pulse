@@ -77,14 +77,21 @@ struct AlertPolicyEdgeTests {
         #expect(policy.evaluate(status(29)) == true)
     }
 
-    @Test("Смена порога через новую политику взводит заново")
-    func newPolicyReArms() {
-        var old = AlertPolicy(threshold: 30, repeatEveryTenPercent: true)
-        #expect(old.evaluate(status(25)) == true)
-        // Так делает BatteryMonitor.settingsChanged(): создаёт политику заново.
-        var fresh = AlertPolicy(threshold: 30, repeatEveryTenPercent: true)
-        // Документируем: та же цифра снова даёт уведомление. Это повод для
-        // проверки в мониторе (см. план тестов, кандидат №2), а не ошибка политики.
-        #expect(fresh.evaluate(status(25)) == true)
+    @Test("Тот же порог: смена повторов не даёт второго уведомления о том же заряде")
+    func reconfiguredKeepsStep() {
+        var policy = AlertPolicy(threshold: 30, repeatEveryTenPercent: true)
+        #expect(policy.evaluate(status(25)) == true)
+        // Так делает BatteryMonitor.settingsChanged() (план §4): порог тот же,
+        // значит взвод переносится.
+        var same = policy.reconfigured(threshold: 30, repeatEveryTenPercent: false)
+        #expect(same.evaluate(status(25)) == false)
+    }
+
+    @Test("Другой порог — политика взводится заново")
+    func reconfiguredReArmsOnNewThreshold() {
+        var policy = AlertPolicy(threshold: 30, repeatEveryTenPercent: true)
+        #expect(policy.evaluate(status(25)) == true)
+        var moved = policy.reconfigured(threshold: 40, repeatEveryTenPercent: true)
+        #expect(moved.evaluate(status(25)) == true)
     }
 }

@@ -94,9 +94,10 @@ struct DeviceAddressResolverEdgeTests {
                       cache: StubCache,
                       names: StubNames = StubNames(),
                       table: [String: String] = [:],
+                      hasNetwork: @escaping @Sendable () -> Bool = { true },
                       clock: StubClock = StubClock()) -> DeviceAddressResolver {
         DeviceAddressResolver(executor: executor, cache: cache, names: names,
-                              systemTable: { table }, now: clock.now)
+                              systemTable: { table }, hasNetwork: hasNetwork, now: clock.now)
     }
 
     @Test("Мусор в кэше адреса не считается адресом — идёт полный поиск")
@@ -286,6 +287,28 @@ struct DeviceAddressResolverEdgeTests {
         #expect(resolved == DeviceAddressResolver.Resolved(ip: "192.168.1.22", source: .usbmuxd))
         #expect(cache.ip(for: udid) == "192.168.1.22")
         #expect(cache.confirmedAt(for: udid) == nil)
+    }
+
+    @Test("Сети нет вообще — подсказка про локальную сеть не загорается")
+    func noNetworkNoHint() async {
+        let saved = Prefs.localNetworkBlocked
+        defer { Prefs.localNetworkBlocked = saved }
+        Prefs.localNetworkBlocked = false
+        let executor = StubExecutor(["/usr/sbin/arp -an": ok("")])
+        let cache = StubCache(mac: "34:10:be:d8:21:09")
+        // Обе таблицы пусты, но и живого интерфейса нет: это не запрет (план §3).
+        let resolved = await make(executor, cache: cache, hasNetwork: { false }).discover(udid: udid)
+        #expect(resolved == nil)
+        #expect(Prefs.localNetworkBlocked == false)
+    }
+
+    @Test("Пустое имя в кэше переучивается")
+    func emptyHostnameRelearned() async {
+        let cache = StubCache(hostname: "")
+        let names = StubNames(reverse: ["192.168.1.11": "iPhone-Toni.local."])
+        await make(cache: cache, names: names).confirm(udid: udid, ip: "192.168.1.11")
+        #expect(cache.hostname(for: udid) == "iPhone-Toni.local.")
+        #expect(names.reverseCalls == 1)
     }
 
     @Test("Кэш другого телефона не мешает")

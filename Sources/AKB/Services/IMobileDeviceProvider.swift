@@ -83,11 +83,12 @@ struct IMobileDeviceProvider: BatteryProvider {
         return devices
     }
 
-    /// Телефон, про который уже известно имя и куда стучаться.
-    private func cachedDevice() -> PhoneDevice? {
-        if let udid = Prefs.selectedUDID, let cached = Prefs.cachedDevice(udid: udid) { return cached }
-        if let udid = Prefs.deviceNames.keys.sorted().first { return Prefs.cachedDevice(udid: udid) }
-        return nil
+    /// Телефон, про который уже известно имя и куда стучаться. Из нескольких
+    /// запомненных выбирается тот же, что выбрался бы из живых: сохранённый UDID,
+    /// затем семейство iPhone 17, а не первый по алфавиту (план §6).
+    func cachedDevice() -> PhoneDevice? {
+        let remembered = Prefs.deviceNames.keys.sorted().compactMap { Prefs.cachedDevice(udid: $0) }
+        return BatteryMonitor.pick(from: remembered, preferredUDID: Prefs.selectedUDID)
     }
 
     private func value(forKey key: String, udid: String, transport: PhoneDevice.Transport) async throws -> String {
