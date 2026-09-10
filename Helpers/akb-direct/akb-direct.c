@@ -150,12 +150,19 @@ out:
 // сервис com.apple.mobile.diagnostics_relay по той же доверенной паре, что и заряд.
 // Наружу уходит только белый список полей: в ответе есть ещё серийный номер
 // батареи и телеметрия, и им в логах приложения делать нечего (план §6.1).
+// Списка три: верхний уровень записи, вложенный `BatteryData` и `ChargerData`.
 static const char *const health_keys[] = {
     "CycleCount", "Voltage", "InstantAmperage", "Amperage",
     "Temperature", "TimeRemaining", "IsCharging", "ExternalConnected"
 };
 static const char *const health_battery_data_keys[] = {
     "DesignCapacity", "NominalChargeCapacity", "FullChargeCapacity"
+};
+// Из `ChargerData`: почему зарядка стоит, хотя провод воткнут. Бит 0x01000000
+// значит «дошли до лимита зарядки iOS» (у Тони 80 %) — по нему приложение
+// понимает, что телефон дозарядился, и говорит «можно отключить» (план §7.1).
+static const char *const health_charger_data_keys[] = {
+    "NotChargingReason"
 };
 
 // Целые печатаем знаковыми: ток при разряде отрицательный, и plist_get_uint_val
@@ -254,6 +261,9 @@ static int mode_health(const char *ip, const char *udid) {
     print_health_group(plist_dict_get_item(registry, "BatteryData"),
                        health_battery_data_keys,
                        sizeof(health_battery_data_keys) / sizeof(health_battery_data_keys[0]));
+    print_health_group(plist_dict_get_item(registry, "ChargerData"),
+                       health_charger_data_keys,
+                       sizeof(health_charger_data_keys) / sizeof(health_charger_data_keys[0]));
 
 out:
     if (result) plist_free(result);

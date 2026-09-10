@@ -262,6 +262,10 @@ struct FakeProvider: BatteryProvider {
     var staleAfter: TimeInterval?
     /// Период переключения зарядки (`AKB_FAKE_TOGGLE_CHARGING`, план §20.3).
     var toggleCharging: TimeInterval?
+    /// Через сколько секунд фейковый телефон «дозаряжается» до лимита
+    /// (`AKB_FAKE_CHARGE_DONE`, план §7.8): до этого он заряжается, после —
+    /// стоит на проводе без зарядки, а здоровье отдаёт бит лимита.
+    var chargeDone: TimeInterval?
     /// Точка отсчёта сна. Задаётся при создании провайдера, то есть при запуске приложения.
     var startedAt: Date = Date()
 
@@ -287,10 +291,29 @@ struct FakeProvider: BatteryProvider {
         return step % 2 == 0 ? isCharging : !isCharging
     }
 
+    /// Телефон дозарядился: провод есть, зарядки нет.
+    private var isChargeDone: Bool {
+        guard let chargeDone else { return false }
+        return Date().timeIntervalSince(startedAt) >= chargeDone
+    }
+
     /// Цифры настоящего телефона Тони — чтобы снимки экрана были похожи на правду.
     func health(for device: PhoneDevice) async throws -> BatteryHealth {
         if isAsleep || FakeMode.forceNoHealth {
             throw ProviderError.deviceUnreachable(device.udid)
+        }
+        // 16777344 = 0x01000080 — ровно то, что телефон отдаёт у лимита зарядки.
+        if isChargeDone {
+            return BatteryHealth(cycleCount: 243,
+                                 designCapacity: 3654,
+                                 nominalCapacity: 3609,
+                                 fullChargeCapacity: 3632,
+                                 voltage: 4197,
+                                 amperage: -58,
+                                 timeRemaining: 1472,
+                                 notChargingReason: 16_777_344,
+                                 updatedAt: Date(),
+                                 source: .usbmuxd)
         }
         return BatteryHealth(cycleCount: 243,
                              designCapacity: 3654,
@@ -305,6 +328,14 @@ struct FakeProvider: BatteryProvider {
 
     func battery(for device: PhoneDevice) async throws -> BatteryStatus {
         if isAsleep { throw ProviderError.deviceUnreachable(device.udid) }
+        if chargeDone != nil {
+            return BatteryStatus(percent: percent,
+                                 isCharging: !isChargeDone,
+                                 externalConnected: true,
+                                 fullyCharged: isChargeDone && percent >= 100,
+                                 updatedAt: Date(),
+                                 source: .usbmuxd)
+        }
         let charging = chargingNow
         return BatteryStatus(percent: percent,
                              isCharging: charging,

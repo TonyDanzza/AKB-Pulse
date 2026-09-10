@@ -78,6 +78,7 @@ enum IMobileDeviceOutputParser {
             // Температура приходит в сотых долях градуса: 2850 → 28,5 °C.
             temperature: int("Temperature").map { Double($0) / 100 },
             timeRemaining: timeRemaining,
+            notChargingReason: int("NotChargingReason"),
             updatedAt: now
         )
     }

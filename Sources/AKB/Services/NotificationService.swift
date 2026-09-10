@@ -1,7 +1,7 @@
 import Foundation
 import UserNotifications
 
-/// Системные уведомления о низком заряде (план §7).
+/// Системные уведомления: низкий заряд (план §7) и «отключи от зарядки» (план §7.5).
 @MainActor
 final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
 
@@ -27,6 +27,7 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
 
     /// Показывает уведомление «iPhone почти разряжен».
     func postLowBattery(deviceName: String, percent: Int) {
+        guard Prefs.notificationsEnabled else { return }
         let content = UNMutableNotificationContent()
         content.title = String(localized: "notification.low.title",
                                defaultValue: "iPhone почти разряжен")
@@ -35,7 +36,35 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
                               deviceName, percent)
         content.sound = .default
         content.interruptionLevel = .timeSensitive
+        post(content)
+    }
 
+    /// Показывает уведомление «телефон дозарядился, можно отключить».
+    /// Сто процентов и лимит зарядки — разные слова: у лимита «100 %» было бы враньём.
+    func postChargeDone(deviceName: String, percent: Int) {
+        guard Prefs.notificationsEnabled else { return }
+        let content = UNMutableNotificationContent()
+        if percent >= 100 {
+            content.title = String(localized: "notification.full.title",
+                                   defaultValue: "iPhone заряжен полностью")
+            content.body = String(format: String(localized: "notification.full.body",
+                                                 defaultValue: "%1$@: 100 %%. Можно отключить от зарядки."),
+                                  deviceName)
+        } else {
+            content.title = String(format: String(localized: "notification.limit.title",
+                                                  defaultValue: "iPhone заряжен до %d %%"),
+                                   percent)
+            content.body = String(format: String(localized: "notification.limit.body",
+                                                 defaultValue: "%1$@ дошёл до лимита зарядки. Можно отключить."),
+                                  deviceName)
+        }
+        content.sound = .default
+        // Не тревога: телефон в порядке, отключить провод можно и через минуту.
+        content.interruptionLevel = .active
+        post(content)
+    }
+
+    private func post(_ content: UNMutableNotificationContent) {
         let request = UNNotificationRequest(identifier: UUID().uuidString,
                                             content: content,
                                             trigger: nil)

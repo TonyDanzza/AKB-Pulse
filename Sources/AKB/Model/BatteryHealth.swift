@@ -27,6 +27,9 @@ struct BatteryHealth: Sendable, Equatable, Hashable, Codable {
     var temperature: Double?
     /// Минут до разряда. nil, если телефон ответил «не знаю» (65535) или числом ≤ 0.
     var timeRemaining: Int?
+    /// Сырое `ChargerData.NotChargingReason`: почему зарядка стоит при воткнутом
+    /// проводе. Разбирается через `isAtChargeLimit` (план §7.2).
+    var notChargingReason: Int?
     /// Часы Mac в момент чтения: `UpdateTime` телефона живёт по своим часам.
     var updatedAt: Date
     /// Каким путём получено — для лога, как у `BatteryStatus`.
@@ -40,6 +43,7 @@ struct BatteryHealth: Sendable, Equatable, Hashable, Codable {
          amperage: Int? = nil,
          temperature: Double? = nil,
          timeRemaining: Int? = nil,
+         notChargingReason: Int? = nil,
          updatedAt: Date = Date(),
          source: BatteryStatus.Source = .usbmuxd) {
         self.cycleCount = cycleCount
@@ -50,6 +54,7 @@ struct BatteryHealth: Sendable, Equatable, Hashable, Codable {
         self.amperage = amperage
         self.temperature = temperature
         self.timeRemaining = timeRemaining
+        self.notChargingReason = notChargingReason
         self.updatedAt = updatedAt
         self.source = source
     }
@@ -63,4 +68,16 @@ struct BatteryHealth: Sendable, Equatable, Hashable, Codable {
         let value = (Double(nominalCapacity) / Double(designCapacity) * 100).rounded()
         return min(max(Int(value), 0), 100)
     }
+
+    /// Бит «зарядка остановлена, потому что достигнут лимит зарядки iOS».
+    ///
+    /// Найден на живом телефоне 2026-09-10: без провода и в первые секунды после
+    /// втыкания `NotChargingReason` был 128 (0x80), а когда заряд упёрся в лимит
+    /// 80 % — стал 16777344 = 0x01000080. Разница ровно в этом бите.
+    /// `FullyCharged` в домене `com.apple.mobile.battery` у лимита **не**
+    /// взводится, поэтому без него не обойтись.
+    static let chargeLimitBit = 0x0100_0000
+
+    /// Телефон стоит у лимита зарядки: провод воткнут, но дальше заряжать iOS не будет.
+    var isAtChargeLimit: Bool { (notChargingReason ?? 0) & Self.chargeLimitBit != 0 }
 }

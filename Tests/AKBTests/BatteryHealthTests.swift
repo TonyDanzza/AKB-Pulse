@@ -106,6 +106,48 @@ struct BatteryHealthParserTests {
     }
 }
 
+@Suite("Лимит зарядки в NotChargingReason")
+struct ChargeLimitTests {
+
+    private func health(_ reason: Int?) -> BatteryHealth {
+        BatteryHealth(cycleCount: 243, designCapacity: 3654, nominalCapacity: 3609,
+                      notChargingReason: reason)
+    }
+
+    @Test("128 — обычное «не заряжается», лимита нет")
+    func plainNotCharging() { #expect(health(128).isAtChargeLimit == false) }
+
+    @Test("16777344 = 0x01000080 — лимит достигнут")
+    func atLimit() { #expect(health(16_777_344).isAtChargeLimit == true) }
+
+    @Test("Поля нет вовсе — лимита нет, падения тоже")
+    func missing() { #expect(health(nil).isAtChargeLimit == false) }
+
+    @Test("Ноль — лимита нет")
+    func zero() { #expect(health(0).isAtChargeLimit == false) }
+
+    @Test("Бит важен сам по себе, а не всё число целиком")
+    func onlyTheBitMatters() {
+        #expect(health(BatteryHealth.chargeLimitBit).isAtChargeLimit == true)
+        #expect(health(0x0200_0080).isAtChargeLimit == false)
+    }
+
+    @Test("Помощник печатает NotChargingReason — парсер его читает")
+    func parserReadsReason() throws {
+        let text = realOutput + "\nNotChargingReason: 16777344"
+        let health = try #require(IMobileDeviceOutputParser.health(text))
+        #expect(health.notChargingReason == 16_777_344)
+        #expect(health.isAtChargeLimit == true)
+    }
+
+    @Test("Старый помощник поля не печатает — остальное читается по-прежнему")
+    func parserWithoutReason() throws {
+        let health = try #require(IMobileDeviceOutputParser.health(realOutput))
+        #expect(health.notChargingReason == nil)
+        #expect(health.isAtChargeLimit == false)
+    }
+}
+
 @Suite("Максимальная ёмкость в процентах")
 struct MaximumCapacityTests {
 
@@ -176,6 +218,7 @@ struct HealthPrefsTests {
         BatteryHealth(cycleCount: cycles, designCapacity: 3654, nominalCapacity: 3609,
                       fullChargeCapacity: 3632, voltage: 4197, amperage: -58,
                       temperature: 28.5, timeRemaining: 1472,
+                      notChargingReason: 16_777_344,
                       updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
                       source: .direct)
     }
@@ -188,6 +231,21 @@ struct HealthPrefsTests {
         let restored = try #require(Prefs.health(udid: udid))
         #expect(restored == sample())
         #expect(restored.source == .direct)
+        #expect(restored.isAtChargeLimit == true)
+    }
+
+    @Test("JSON без NotChargingReason (запись версии 1.3) читается по-прежнему")
+    func oldJSONWithoutReason() throws {
+        let udid = "HEALTH-\(UUID().uuidString)"
+        defer { Prefs.setHealth(nil, udid: udid) }
+        Prefs.batteryHealth[udid] = """
+            {"cycleCount":243,"designCapacity":3654,"nominalCapacity":3609,\
+            "updatedAt":1700000000,"source":"direct"}
+            """
+        let restored = try #require(Prefs.health(udid: udid))
+        #expect(restored.cycleCount == 243)
+        #expect(restored.notChargingReason == nil)
+        #expect(restored.isAtChargeLimit == false)
     }
 
     @Test("nil стирает запись, а последняя запись убирает ключ целиком")

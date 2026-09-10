@@ -1,6 +1,6 @@
 # AKB Pulse — заряд iPhone в строке меню macOS
 
-**Скачать:** [AKB-Pulse-1.3.1.dmg](https://github.com/TonyDanzza/AKB-Pulse/releases/latest/download/AKB-Pulse-1.3.1.dmg) — macOS 26+, Apple Silicon.
+**Скачать:** [AKB-Pulse-1.4.dmg](https://github.com/TonyDanzza/AKB-Pulse/releases/latest/download/AKB-Pulse-1.4.dmg) — macOS 26+, Apple Silicon.
 
 При первом запуске: правая кнопка → Открыть (приложение подписано без Apple Developer ID).
 
@@ -139,8 +139,8 @@ xcodebuild -project AKB.xcodeproj -scheme AKB -configuration Debug \
 Сборка для раздачи:
 
 ```bash
-./scripts/make-dmg.sh       # → dist/AKB-Pulse-1.3.1.dmg (готовый образ)
-./scripts/package.sh        # → dist/AKB-Pulse-1.3.1.zip (просто архив)
+./scripts/make-dmg.sh       # → dist/AKB-Pulse-1.4.dmg (готовый образ)
+./scripts/package.sh        # → dist/AKB-Pulse-1.4.zip (просто архив)
 ```
 
 Оба скрипта собирают Release. Утилиты libimobiledevice встраиваются в
@@ -167,6 +167,7 @@ otool -L build/Build/Products/Release/AKB.app/Contents/Helpers/* | grep homebrew
 | `AKB_FAKE_NO_HEALTH=1` | здоровье не читается — проверить раздел «Батарея» без данных |
 | `AKB_FAKE_STALE_AFTER=20` | фейковый телефон «засыпает» через 20 с — проверить «Нет связи» |
 | `AKB_FAKE_TOGGLE_CHARGING=8` | зарядка включается и выключается каждые 8 с — видно, что иконка в строке меню обновляется сама |
+| `AKB_FAKE_CHARGE_DONE=15` | 15 с фейковый телефон заряжается, потом стоит на проводе у лимита — проверить уведомление «отключи от зарядки» (с `AKB_FAKE_PERCENT=100` — «заряжен полностью») |
 
 ```bash
 AKB_FAKE_PERCENT=25 build/Build/Products/Debug/AKB.app/Contents/MacOS/AKB &
@@ -203,11 +204,35 @@ H=/Applications/AKB.app/Contents/Helpers/akb-direct
   не дожидаясь часа.
 - **Опрос** — интервал опроса спящего iPhone: 30 с / 1 мин / 2 мин / 5 мин,
   и переключатель «показывать проценты в строке меню».
-- **Уведомления** — порог 10…50 % (по умолчанию 30 %) и повтор на каждой
-  ступени −10 % (30 → 20 → 10).
+- **Уведомления** — общий выключатель и отдельный у каждого уведомления:
+  «Низкий заряд» с порогом 10…50 % (по умолчанию 30 %) и повтором на каждой
+  ступени −10 % (30 → 20 → 10) и «Отключить от зарядки».
 - **Система** — автозапуск, кнопка «Показать инструкцию…» и «Сохранить лог…».
 
 Опрос выполняется также при пробуждении Mac и при открытии окна.
+
+## «Отключи от зарядки»
+
+Когда iPhone на проводе дозарядился, AKB Pulse говорит об этом один раз за сеанс
+зарядки. Дозарядился — это либо 100 %, либо лимит зарядки iOS («Настройки →
+Батарея → Лимит зарядки», обычно 80 %).
+
+Сто процентов телефон объявляет сам (`FullyCharged`), а вот у лимита он молчит:
+в домене `com.apple.mobile.battery` остаётся «питание есть, зарядки нет» —
+ровно то же, что в первые ~20 секунд после втыкания провода. Отличить одно от
+другого помогает `ChargerData.NotChargingReason` из записи IORegistry
+`AppleSmartBattery` (её читает `akb-direct health`): без провода и сразу после
+втыкания там 128, а у лимита появляется бит `0x01000000` — на живом телефоне
+это были 16777216 и 16777344. Приложение спрашивает это поле ровно один раз,
+когда зарядка остановилась после того, как шла. Если телефон не ответил,
+уведомление всё равно уйдёт — после трёх подряд замеров «на проводе, не
+заряжается» (это 15 секунд: на питании опрос идёт каждые 5 с). Но без
+подтверждения от телефона оно уходит только при заряде 80 % и выше: ниже лимит
+зарядки в iOS не ставится, так что остановка там — это пауза по нагреву, а не
+дозарядка.
+
+Телефон, воткнутый уже выше лимита, молчит: зарядка при нём ни разу не шла,
+и говорить «отключи» не о чем.
 
 ## Лог
 
@@ -235,7 +260,7 @@ AKB Pulse пишет события в `~/Library/Logs/AKB/akb.log` (ротац�
 
 ## Передать другому
 
-Собери `./scripts/make-dmg.sh` и отдай `dist/AKB-Pulse-1.3.1.dmg`. Ставить ничего
+Собери `./scripts/make-dmg.sh` и отдай `dist/AKB-Pulse-1.4.dmg`. Ставить ничего
 не нужно: libimobiledevice уже внутри. Получателю остаётся два шага —
 включить для своего телефона галочку Wi-Fi в Finder (окно первого запуска
 показывает, как) и при первом открытии обойти Gatekeeper, как описано выше.
@@ -269,6 +294,7 @@ Sources/AKB/
     RetryWindow.swift             окно повторов 40 с с предпроверкой (покрыто тестами)
     BatteryMonitor.swift          @Observable состояние и таймер опроса
     AlertPolicy.swift             когда слать уведомление (покрыто тестами)
+    ChargeDonePolicy.swift        когда сказать «отключи от зарядки» (покрыто тестами)
     NotificationService.swift     UNUserNotificationCenter
     LaunchAtLogin.swift           SMAppService
     AKBLog.swift                  единая точка: os.Logger + файловый лог
@@ -283,15 +309,15 @@ Sources/AKB/
   Services/DeviceEventWatcher.swift события usbmuxd → немедленный опрос
 Helpers/akb-direct/               помощник на C: заряд и здоровье по IP, MAC,
                                   адрес, события
-Tests/AKBTests/                   249 тестов, Swift Testing
+Tests/AKBTests/                   274 теста, Swift Testing
 ```
 
 ```
 scripts/
   dev/click-menubar.swift      клик по строке меню для снимков экрана
   bundle-libimobiledevice.sh   встраивает утилиты и dylib в бандл
-  make-dmg.sh                  Release → dist/AKB-Pulse-1.3.1.dmg
-  package.sh                   Release → dist/AKB-Pulse-1.3.1.zip
+  make-dmg.sh                  Release → dist/AKB-Pulse-1.4.dmg
+  package.sh                   Release → dist/AKB-Pulse-1.4.zip
 ```
 
 Сторонних SPM-зависимостей нет — только системные фреймворки.

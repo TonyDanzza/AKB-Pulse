@@ -9,7 +9,9 @@ struct SettingsView: View {
 
     @AppStorage(Prefs.Key.pollInterval) private var pollInterval = 60
     @AppStorage(Prefs.Key.showPercent) private var showPercent = true
+    @AppStorage(Prefs.Key.notificationsEnabled) private var notificationsEnabled = true
     @AppStorage(Prefs.Key.notifyLowBattery) private var notifyLowBattery = true
+    @AppStorage(Prefs.Key.notifyChargeDone) private var notifyChargeDone = true
     @AppStorage(Prefs.Key.lowThreshold) private var lowThreshold = 30
     @AppStorage(Prefs.Key.repeatEveryTen) private var repeatEveryTen = true
     @AppStorage(Prefs.Key.launchAtLogin) private var launchAtLogin = false
@@ -19,10 +21,13 @@ struct SettingsView: View {
     @State private var isSavingLog = false
 
     /// Высота окна настроек. Считается один раз за запуск: на MacBook без
-    /// внешнего монитора 916 pt не влезает, окно уехало бы за нижний край.
+    /// внешнего монитора 1031 pt не влезает, окно уехало бы за нижний край.
     /// 40 pt — запас на заголовок окна и поля вокруг него.
+    /// 1031 — замер по снимку версии 1.4: содержимое кончается на 1009 pt,
+    /// плюс те же 22 pt нижнего поля, что были в 1.3.1 (раздел «Уведомления»
+    /// вырос на два переключателя и подпись).
     @MainActor
-    private static let windowHeight: CGFloat = min(916, (NSScreen.main?.visibleFrame.height ?? 916) - 40)
+    private static let windowHeight: CGFloat = min(1031, (NSScreen.main?.visibleFrame.height ?? 1031) - 40)
 
     var body: some View {
         Form {
@@ -198,11 +203,18 @@ struct SettingsView: View {
     @ViewBuilder
     private var notificationsSection: some View {
         Section(L("settings.notifications", "Уведомления")) {
-            Toggle(L("settings.notifyLow", "Уведомлять о низком заряде"), isOn: $notifyLowBattery)
+            Toggle(L("settings.notifications.all", "Уведомления"), isOn: $notificationsEnabled)
+                .onChange(of: notificationsEnabled) { _, isOn in
+                    if isOn { NotificationService.shared.requestAuthorizationIfNeeded() }
+                    monitor.settingsChanged()
+                }
+
+            Toggle(L("settings.notifyLow", "Низкий заряд"), isOn: $notifyLowBattery)
                 .onChange(of: notifyLowBattery) { _, isOn in
                     if isOn { NotificationService.shared.requestAuthorizationIfNeeded() }
                     monitor.settingsChanged()
                 }
+                .disabled(!notificationsEnabled)
 
             LabeledContent {
                 Slider(value: thresholdBinding, in: 10...50, step: 5)
@@ -211,11 +223,24 @@ struct SettingsView: View {
                 Text(String(format: L("settings.threshold", "Порог: %d%%"), lowThreshold))
                     .monospacedDigit()
             }
-            .disabled(!notifyLowBattery)
+            .disabled(!notificationsEnabled || !notifyLowBattery)
 
             Toggle(L("settings.repeatEveryTen", "Повторять каждые −10%"), isOn: $repeatEveryTen)
                 .onChange(of: repeatEveryTen) { monitor.settingsChanged() }
-                .disabled(!notifyLowBattery)
+                .disabled(!notificationsEnabled || !notifyLowBattery)
+
+            Toggle(L("settings.notifyChargeDone", "Отключить от зарядки"), isOn: $notifyChargeDone)
+                .onChange(of: notifyChargeDone) { _, isOn in
+                    if isOn { NotificationService.shared.requestAuthorizationIfNeeded() }
+                    monitor.settingsChanged()
+                }
+                .disabled(!notificationsEnabled)
+
+            Text(L("settings.notifyChargeDone.hint",
+                   "Когда iPhone на проводе дошёл до лимита зарядки или до 100 %."))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

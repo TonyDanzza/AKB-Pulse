@@ -565,6 +565,74 @@
         }
       }
     },
+    "notification.full.body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@: 100 %%. You can unplug it."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@: 100 %%. Можно отключить от зарядки."
+          }
+        }
+      }
+    },
+    "notification.full.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone is fully charged"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone заряжен полностью"
+          }
+        }
+      }
+    },
+    "notification.limit.body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ has reached its charge limit. You can unplug it."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ дошёл до лимита зарядки. Можно отключить."
+          }
+        }
+      }
+    },
+    "notification.limit.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone charged to %d %%"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone заряжен до %d %%"
+          }
+        }
+      }
+    },
     "notification.low.body": {
       "extractionState": "manual",
       "localizations": {
@@ -1194,19 +1262,70 @@
         }
       }
     },
+    "settings.notifications.all": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уведомления"
+          }
+        }
+      }
+    },
+    "settings.notifyChargeDone": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unplug from charger"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отключить от зарядки"
+          }
+        }
+      }
+    },
+    "settings.notifyChargeDone.hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When the iPhone is plugged in and has reached its charge limit or 100 %."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Когда iPhone на проводе дошёл до лимита зарядки или до 100 %."
+          }
+        }
+      }
+    },
     "settings.notifyLow": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Notify about low battery"
+            "value": "Low battery"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Уведомлять о низком заряде"
+            "value": "Низкий заряд"
           }
         }
       }

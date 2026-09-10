@@ -44,6 +44,9 @@ final class BatteryMonitor {
 
     private let provider: BatteryProvider
     private var policy: AlertPolicy
+    /// «Отключи от зарядки» (план §7.4). `private(set)` — чтобы тесты видели,
+    /// что при выключенном уведомлении политика сброшена.
+    private(set) var chargePolicy = ChargeDonePolicy()
     private var timerTask: Task<Void, Never>?
     /// iPhone по Wi-Fi отвечает не каждый раз (радио засыпает). Одна осечка
     /// не должна стирать показания — уходим в ошибку только после трёх подряд.
@@ -93,7 +96,8 @@ final class BatteryMonitor {
             self.provider = FakeProvider(percent: fake,
                                          isCharging: FakeMode.isCharging,
                                          staleAfter: FakeMode.staleAfter,
-                                         toggleCharging: FakeMode.toggleCharging)
+                                         toggleCharging: FakeMode.toggleCharging,
+                                         chargeDone: FakeMode.chargeDone)
         } else {
             self.provider = IMobileDeviceProvider()
         }
@@ -256,6 +260,8 @@ final class BatteryMonitor {
         healthUDID = device.udid
         health = Prefs.health(udid: device.udid)
         policy.reset()
+        // Другой телефон — другой сеанс зарядки, старое состояние к нему не относится.
+        chargePolicy.reset()
         Task { await refresh(rediscover: false) }
     }
 
@@ -289,6 +295,7 @@ final class BatteryMonitor {
             lastPollFailed = false
             phase = .ready(status)
             evaluateAlert(status, device: device)
+            await evaluateChargeDone(status, device: device)
             // Телефон только что ответил — лучшей минуты спросить про здоровье не будет.
             if Self.healthIsDue(health: health,
                                 lastAttempt: Prefs.healthAttempt(udid: device.udid),
@@ -461,7 +468,7 @@ final class BatteryMonitor {
     }
 
     private func evaluateAlert(_ status: BatteryStatus, device: PhoneDevice) {
-        guard Prefs.notifyLowBattery else {
+        guard Prefs.notificationsEnabled, Prefs.notifyLowBattery else {
             policy.reset()
             return
         }
@@ -471,6 +478,37 @@ final class BatteryMonitor {
         }
         if policy.evaluate(status) {
             NotificationService.shared.postLowBattery(deviceName: device.name, percent: status.percent)
+        }
+    }
+
+    /// «Отключи от зарядки» (план §7.4). Решение принимает `ChargeDonePolicy`,
+    /// а монитор только достаёт для неё подтверждение по IORegistry.
+    private func evaluateChargeDone(_ status: BatteryStatus, device: PhoneDevice) async {
+        guard Prefs.notificationsEnabled, Prefs.notifyChargeDone else {
+            chargePolicy.reset()
+            return
+        }
+        switch chargePolicy.evaluate(status) {
+        case .none:
+            return
+        case .fire:
+            NotificationService.shared.postChargeDone(deviceName: device.name, percent: status.percent)
+            AKBLog.info(.monitor, "уведомление: заряжен до \(status.percent) %")
+        case .needsConfirmation:
+            // Телефон на проводе не спит и отвечает за доли секунды, так что
+            // лишний запрос здесь дёшев. Не ответил — сработает запасной путь.
+            guard var value = try? await provider.health(for: device) else { return }
+            // Данные свежие, выбрасывать их жалко: кладём, как в readHealth.
+            value.updatedAt = now()
+            health = value
+            healthUDID = device.udid
+            Prefs.setHealth(value, udid: device.udid)
+            if chargePolicy.confirm(limitReached: value.isAtChargeLimit) {
+                NotificationService.shared.postChargeDone(deviceName: device.name, percent: status.percent)
+                AKBLog.info(.monitor, "лимит зарядки достигнут "
+                            + "(NotChargingReason \(value.notChargingReason ?? 0)), "
+                            + "уведомление: заряжен до \(status.percent) %")
+            }
         }
     }
 }

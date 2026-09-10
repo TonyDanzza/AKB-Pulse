@@ -104,6 +104,37 @@ struct PrefsTests {
         #expect(IMobileDeviceProvider().cachedDevice()?.udid == "A-OLD")
     }
 
+    @Test("Новые ключи уведомлений по умолчанию включены")
+    func notificationDefaults() {
+        Prefs.registerDefaults()
+        let registered = UserDefaults.standard.volatileDomain(forName: UserDefaults.registrationDomain)
+        #expect(registered[Prefs.Key.notificationsEnabled] as? Bool == true)
+        #expect(registered[Prefs.Key.notifyLowBattery] as? Bool == true)
+        #expect(registered[Prefs.Key.notifyChargeDone] as? Bool == true)
+        // Ключи — часть формата настроек пользователя, менять их нельзя.
+        #expect(Prefs.Key.notificationsEnabled == "notificationsEnabled")
+        #expect(Prefs.Key.notifyChargeDone == "notifyChargeDone")
+    }
+
+    @Test("Общий выключатель и отдельные читаются из UserDefaults")
+    func notificationSwitches() {
+        let defaults = UserDefaults.standard
+        let savedAll = defaults.object(forKey: Prefs.Key.notificationsEnabled)
+        let savedDone = defaults.object(forKey: Prefs.Key.notifyChargeDone)
+        defer {
+            defaults.set(savedAll, forKey: Prefs.Key.notificationsEnabled)
+            defaults.set(savedDone, forKey: Prefs.Key.notifyChargeDone)
+        }
+        defaults.set(false, forKey: Prefs.Key.notificationsEnabled)
+        defaults.set(true, forKey: Prefs.Key.notifyChargeDone)
+        #expect(Prefs.notificationsEnabled == false)
+        #expect(Prefs.notifyChargeDone == true)
+        defaults.set(true, forKey: Prefs.Key.notificationsEnabled)
+        defaults.set(false, forKey: Prefs.Key.notifyChargeDone)
+        #expect(Prefs.notificationsEnabled == true)
+        #expect(Prefs.notifyChargeDone == false)
+    }
+
     @Test("Допустимые интервалы опроса")
     func pollIntervals() {
         #expect(Prefs.pollIntervals == [30, 60, 120, 300])

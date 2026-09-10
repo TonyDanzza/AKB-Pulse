@@ -62,7 +62,10 @@ private final class TestClock {
 @MainActor
 private func prepareDefaults() {
     let defaults = UserDefaults.standard
-    defaults.set(false, forKey: Prefs.Key.notifyLowBattery)   // без UNUserNotificationCenter в тестах
+    // Без UNUserNotificationCenter в тестах: он живёт только в настоящем приложении.
+    defaults.set(false, forKey: Prefs.Key.notificationsEnabled)
+    defaults.set(false, forKey: Prefs.Key.notifyLowBattery)
+    defaults.set(false, forKey: Prefs.Key.notifyChargeDone)
     defaults.set(30, forKey: Prefs.Key.lowThreshold)
     defaults.set(true, forKey: Prefs.Key.repeatEveryTen)
     defaults.set(60, forKey: Prefs.Key.pollInterval)
@@ -545,6 +548,99 @@ struct MonitorHealthTests {
         Prefs.setHealth(sample, udid: phone.udid)
         let monitor = BatteryMonitor(provider: ScriptedProvider())
         #expect(monitor.health?.cycleCount == 243)
+        prepareDefaults()
+        UserDefaults.standard.removeObject(forKey: Prefs.Key.selectedUDID)
+    }
+}
+
+/// «Отключи от зарядки» в мониторе (план §7.4). Само уведомление тут не шлётся:
+/// `UNUserNotificationCenter` в тестовом бандле нечем поднять, поэтому проверяем
+/// состояние политики и то, что монитор ходит за подтверждением.
+@MainActor
+@Suite("Монитор: отключи от зарядки", .serialized)
+struct MonitorChargeDoneTests {
+
+    private func make(_ provider: ScriptedProvider, clock: TestClock) -> BatteryMonitor {
+        prepareDefaults()
+        return BatteryMonitor(provider: provider, now: { clock.date })
+    }
+
+    private func charging(_ clock: TestClock) -> BatteryStatus {
+        BatteryStatus(percent: 76, isCharging: true, externalConnected: true, updatedAt: clock.date)
+    }
+
+    private func stopped(_ clock: TestClock) -> BatteryStatus {
+        BatteryStatus(percent: 80, isCharging: false, externalConnected: true, updatedAt: clock.date)
+    }
+
+    private func health(reason: Int) -> BatteryHealth {
+        BatteryHealth(cycleCount: 243, designCapacity: 3654, nominalCapacity: 3609,
+                      notChargingReason: reason)
+    }
+
+    @Test("Общий выключатель выключен — политика сброшена, зарядку монитор не запоминает")
+    func allNotificationsOff() async {
+        let clock = TestClock()
+        let provider = ScriptedProvider(batteries: [.success(charging(clock))])
+        let monitor = make(provider, clock: clock)
+        UserDefaults.standard.set(false, forKey: Prefs.Key.notificationsEnabled)
+        UserDefaults.standard.set(true, forKey: Prefs.Key.notifyChargeDone)
+        await monitor.refresh(rediscover: true)
+        #expect(monitor.chargePolicy.sawCharging == false)
+        #expect(monitor.chargePolicy == ChargeDonePolicy())
+        prepareDefaults()
+    }
+
+    @Test("Отдельный выключатель выключен — политика тоже сброшена")
+    func chargeDoneOff() async {
+        let clock = TestClock()
+        let provider = ScriptedProvider(batteries: [.success(charging(clock))])
+        let monitor = make(provider, clock: clock)
+        UserDefaults.standard.set(true, forKey: Prefs.Key.notificationsEnabled)
+        UserDefaults.standard.set(false, forKey: Prefs.Key.notifyChargeDone)
+        await monitor.refresh(rediscover: true)
+        #expect(monitor.chargePolicy.sawCharging == false)
+        prepareDefaults()
+    }
+
+    @Test("Уведомление включено: зарядка запоминается, а пауза спрашивает здоровье")
+    func asksHealthOnPause() async {
+        let clock = TestClock()
+        let provider = ScriptedProvider(batteries: [.success(charging(clock))],
+                                        healths: [.success(health(reason: 128))])
+        let monitor = make(provider, clock: clock)
+        UserDefaults.standard.set(true, forKey: Prefs.Key.notificationsEnabled)
+        UserDefaults.standard.set(true, forKey: Prefs.Key.notifyChargeDone)
+
+        await monitor.refresh(rediscover: true)
+        #expect(monitor.chargePolicy.sawCharging == true)
+        let afterCharging = await provider.healthCalls
+
+        await provider.batteries([.success(stopped(clock))])
+        await monitor.refresh(rediscover: false)
+        // Монитор сходил за подтверждением и положил свежие цифры к себе.
+        #expect(await provider.healthCalls == afterCharging + 1)
+        #expect(monitor.health?.notChargingReason == 128)
+        #expect(monitor.health?.updatedAt == clock.date)
+        // 128 — это не лимит: уведомления нет, ждём запасного пути.
+        #expect(monitor.chargePolicy.fired == false)
+        #expect(monitor.chargePolicy.stoppedPolls == 1)
+        prepareDefaults()
+    }
+
+    @Test("Смена телефона закрывает сеанс зарядки")
+    func selectResetsPolicy() async {
+        let clock = TestClock()
+        let provider = ScriptedProvider(devices: [.success([older, phone])],
+                                        batteries: [.success(charging(clock))])
+        let monitor = make(provider, clock: clock)
+        UserDefaults.standard.set(true, forKey: Prefs.Key.notificationsEnabled)
+        UserDefaults.standard.set(true, forKey: Prefs.Key.notifyChargeDone)
+        await monitor.refresh(rediscover: true)
+        #expect(monitor.chargePolicy.sawCharging == true)
+
+        monitor.select(older)
+        #expect(monitor.chargePolicy.sawCharging == false)
         prepareDefaults()
         UserDefaults.standard.removeObject(forKey: Prefs.Key.selectedUDID)
     }

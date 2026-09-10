@@ -7,7 +7,11 @@ enum Prefs {
         static let selectedUDID = "selectedUDID"
         static let pollInterval = "pollInterval"
         static let showPercent = "showPercent"
+        /// Общий выключатель всех уведомлений (план §7.6).
+        static let notificationsEnabled = "notificationsEnabled"
         static let notifyLowBattery = "notifyLowBattery"
+        /// «Отключи от зарядки»: телефон дошёл до лимита или до 100 %.
+        static let notifyChargeDone = "notifyChargeDone"
         static let lowThreshold = "lowThreshold"
         static let repeatEveryTen = "repeatEveryTen"
         static let launchAtLogin = "launchAtLogin"
@@ -42,7 +46,9 @@ enum Prefs {
         UserDefaults.standard.register(defaults: [
             Key.pollInterval: 60,
             Key.showPercent: true,
+            Key.notificationsEnabled: true,
             Key.notifyLowBattery: true,
+            Key.notifyChargeDone: true,
             Key.lowThreshold: 30,
             Key.repeatEveryTen: true,
             Key.launchAtLogin: false
@@ -56,7 +62,9 @@ enum Prefs {
 
     static var pollInterval: Int { UserDefaults.standard.integer(forKey: Key.pollInterval) }
     static var showPercent: Bool { UserDefaults.standard.bool(forKey: Key.showPercent) }
+    static var notificationsEnabled: Bool { UserDefaults.standard.bool(forKey: Key.notificationsEnabled) }
     static var notifyLowBattery: Bool { UserDefaults.standard.bool(forKey: Key.notifyLowBattery) }
+    static var notifyChargeDone: Bool { UserDefaults.standard.bool(forKey: Key.notifyChargeDone) }
     static var lowThreshold: Int { UserDefaults.standard.integer(forKey: Key.lowThreshold) }
     static var repeatEveryTen: Bool { UserDefaults.standard.bool(forKey: Key.repeatEveryTen) }
 
@@ -221,6 +229,15 @@ enum FakeMode {
     static var toggleCharging: TimeInterval? {
         guard let raw = ProcessInfo.processInfo.environment["AKB_FAKE_TOGGLE_CHARGING"],
               let value = TimeInterval(raw), value > 0 else { return nil }
+        return value
+    }
+
+    /// Первые N секунд фейковый телефон заряжается, потом стоит на проводе без
+    /// зарядки с `NotChargingReason` лимита (`AKB_FAKE_CHARGE_DONE`, план §7.8) —
+    /// так проверяется уведомление «отключи от зарядки» без рук пользователя.
+    static var chargeDone: TimeInterval? {
+        guard let raw = ProcessInfo.processInfo.environment["AKB_FAKE_CHARGE_DONE"],
+              let value = TimeInterval(raw), value >= 0 else { return nil }
         return value
     }
 
